@@ -61,6 +61,7 @@ def main():
     ap.add_argument("--seq-len", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--save-every", type=int, default=200)
     args = ap.parse_args()
 
     torch.set_num_threads(args.threads)
@@ -89,7 +90,10 @@ def main():
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         if (step + 1) % 50 == 0:
-            print(f"sft step {step+1}/{args.steps}  loss {float(out['loss']):.4f}", flush=True)
+            print(f"sft step {step+1}/{args.steps}  loss {float(out['loss'].detach()):.4f}", flush=True)
+        if args.save_every and (step + 1) % args.save_every == 0:
+            torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
+                       os.path.join(args.out, f"sft_{step+1}.pt"))
 
     torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
                os.path.join(args.out, "model.pt"))

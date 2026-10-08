@@ -53,6 +53,9 @@ def main():
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--snapshot-dir", default=None,
+                    help="also save weights-only snapshots here (for model soup)")
+    ap.add_argument("--snapshot-every", type=int, default=0)
     args = ap.parse_args()
 
     torch.set_num_threads(args.threads)
@@ -116,6 +119,11 @@ def main():
             torch.save(sd, ckpt_path)
             print(f"saved checkpoint at step {step+1}", flush=True)
 
+        if args.snapshot_dir and args.snapshot_every and (step + 1) % args.snapshot_every == 0:
+            os.makedirs(args.snapshot_dir, exist_ok=True)
+            torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
+                       os.path.join(args.snapshot_dir, f"snap_{args.seed}_{step+1}.pt"))
+
     # final export: weights only + tokenizer + config = ready-to-use artifact
     torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
                os.path.join(args.out, "model.pt"))
@@ -123,7 +131,13 @@ def main():
     if os.path.exists(tc):
         import shutil
         shutil.copy(tc, os.path.join(args.out, "tokenizer.json"))
-    final_loss = running / max(1, (args.steps - start_step) % args.log_every or args.log_every)
+    model.eval()
+    with torch.no_grad():
+        vals = []
+        for _ in range(10):
+            b = corpus.sample_batch(args.batch_size, args.seq_len)
+            vals.append(float(model(input_ids=b["input_ids"], labels=b["labels"])["loss"]))
+    final_loss = sum(vals) / len(vals)
     with open(os.path.join(args.out, "train_report.json"), "w") as f:
         json.dump({"params": n_params, "steps": args.steps, "final_loss": final_loss}, f, indent=2)
     print("done. wrote model.pt and tokenizer.json", flush=True)

@@ -36,16 +36,18 @@ def load_model(model_dir: str, threads: int = 4):
 
 
 def chat_once(model, tok, user: str, max_new: int = 200, temperature: float = 0.7,
-              instruct: bool = False) -> str:
+              instruct: bool = False, repetition_penalty: float = 1.3,
+              no_repeat_ngram_size: int = 3, top_k: int = 50) -> str:
     if instruct:
         # use after agentic SFT, which teaches the <system>/<user> format
         prompt = f"<bos><system> You are SmallM. Use strict English. </system><user> {user} </user><assistant>"
     else:
-        # base mode: continue the user's text directly
-        prompt = user
+        # base mode: continue the user's text directly (docs begin with <bos>)
+        prompt = "<bos>" + user
     ids = torch.tensor([tok.encode(prompt, allow_special=True)])
     out = model.generate(ids, max_new_tokens=max_new, eos_token_id=tok.eos_id,
-                         temperature=temperature)
+                         temperature=temperature, repetition_penalty=repetition_penalty,
+                         no_repeat_ngram_size=no_repeat_ngram_size, top_k=top_k)
     gen = out[0, ids.shape[1]:].tolist()
     return tok.decode(gen, skip_special=False).replace("<eos>", "").strip()
 
@@ -60,6 +62,9 @@ def main():
     ap.add_argument("--prompt", default=None, help="run one prompt and exit")
     ap.add_argument("--instruct", action="store_true",
                     help="use after agentic SFT (system/user prompt format)")
+    ap.add_argument("--repetition-penalty", type=float, default=1.3)
+    ap.add_argument("--no-repeat-ngram", type=int, default=3)
+    ap.add_argument("--top-k", type=int, default=50)
     args = ap.parse_args()
 
     model, tok = load_model(args.model, args.threads)

@@ -10,9 +10,12 @@ import re
 from collections import Counter
 from typing import Dict, Iterable, List, Tuple
 
-# Shared pretokenizer: alternating whitespace and non-whitespace runs. Using the
-# same function for training and inference keeps encoding lossless and consistent.
-_PRETOK_RE = re.compile(r"\s+|\S+")
+# GPT-2-style pretokenizer: a word absorbs its single leading space, so the
+# model predicts " the" as one token instead of a bare space followed by "the".
+# Without this, whitespace becomes the single most frequent token and the model
+# can collapse into space loops. The same function runs at train and inference
+# time, so encoding stays lossless and consistent.
+_PRETOK_RE = re.compile(r" ?[A-Za-z]+| ?\d+| ?[^\sA-Za-z0-9]+|\s+")
 
 
 def _pretokenize(text: str) -> List[str]:
@@ -54,6 +57,8 @@ def _bytes_to_unicode() -> Dict[int, str]:
 
 BYTE_TO_UNICODE = _bytes_to_unicode()
 UNICODE_TO_BYTE = {v: k for k, v in BYTE_TO_UNICODE.items()}
+# whitespace bytes (space, tab, newline, CR, VT, FF) in the byte->unicode space
+_WS_CHARS = {BYTE_TO_UNICODE[b] for b in (0x20, 0x09, 0x0A, 0x0D, 0x0B, 0x0C)}
 
 
 def _get_pairs(word: Tuple[str, ...]) -> set:
@@ -67,6 +72,7 @@ class BPETokenizer:
         self.merges = [tuple(m) for m in merges]
         self.bpe_ranks = {tuple(m): i for i, m in enumerate(self.merges)}
         self._cache: Dict[str, List[int]] = {}
+
         self.specials = specials or SPECIAL_TOKENS
         self.special_to_id = {t: self.encoder[t] for t in self.specials}
         self.pad_id = self.special_to_id["<pad>"]
@@ -111,6 +117,10 @@ class BPETokenizer:
             best, freq = max(counts.items(), key=lambda kv: kv[1])
             if freq < min_freq:
                 break
+            # never merge whitespace into longer runs (keeps space a single token)
+            if all(c in _WS_CHARS for c in best):
+                counts.pop(best, None)
+                continue
             new_tok = best[0] + best[1]
             if new_tok in vocab:
                 break
@@ -145,12 +155,18 @@ class BPETokenizer:
         word = tuple(token)
         if len(word) < 2:
             return list(word)
+        ws_only = all(c in _WS_CHARS for c in word)
         while True:
             pairs = _get_pairs(word)
             if not pairs:
                 break
             bigram = min(pairs, key=lambda p: self.bpe_ranks.get(p, float("inf")))
             if bigram not in self.bpe_ranks:
+                break
+            # Never grow a whitespace-only run into longer tokens. This keeps
+            # runs of spaces as single space tokens, so an all-space loop stays
+            # cheap to detect and recover from during generation.
+            if ws_only and all(c in self._ws_chars for c in bigram[0]):
                 break
             word = self._merge(word, bigram)
             if len(word) == 1:

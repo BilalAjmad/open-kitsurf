@@ -62,7 +62,10 @@ def parse_decision(text: str) -> Dict[str, Any]:
 
     # If the model produced a verify block but no tool, strip it from the answer.
     answer = _VERIFY_RE.sub("", text)
-    answer = _THINK_RE.sub("", answer).strip()
+    answer = _THINK_RE.sub("", answer)
+    for tok in ("<bos>", "<eos>", "<pad>", "<assistant>", "<user>", "<system>"):
+        answer = answer.replace(tok, "")
+    answer = answer.strip()
     if answer:
         decision["answer"] = answer
     return decision
@@ -84,7 +87,10 @@ class ModelBrain(Brain):
             max_new_tokens=self.max_new_tokens,
             eos_token_id=self.tokenizer.eos_id,
             temperature=self.temperature,
+            repetition_penalty=1.2,
+            no_repeat_ngram_size=4,
         )
         gen_ids = out[0, ids.shape[1]:].tolist()
-        text = self.tokenizer.decode(gen_ids, skip_special=True)
+        # keep special tokens so parse_decision can see  thinking/<tool_call>/<verify>
+        text = self.tokenizer.decode(gen_ids, skip_special=False)
         return parse_decision(text)

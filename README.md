@@ -35,8 +35,13 @@ PYTHONPATH=src python3 scripts/sft_agentic.py \
   --steps 400 --batch-size 8 --seq-len 256
 
 # 4. model soup: merge several fine-tunes (uniform + greedy)
+#    (train with --snapshot-dir to emit soup candidates)
+PYTHONPATH=src python3 scripts/train_real.py \
+  --config configs/smallm_11m.json --data-dir data/processed \
+  --out checkpoints/smallm_11m --steps 1500 --lr 1.2e-4 --resume \
+  --snapshot-dir checkpoints/snapshots --snapshot-every 75
 PYTHONPATH=src python3 scripts/make_soup.py \
-  --variants checkpoints/varA checkpoints/varB checkpoints/varC \
+  --variants checkpoints/snapshots/*.pt \
   --data-dir data/processed --out checkpoints/smallm_11m_soup
 
 # 5. use it
@@ -47,6 +52,14 @@ PYTHONPATH=src python3 scripts/chat.py --model checkpoints/smallm_11m_agent --mo
 This produces a **real trained checkpoint** you can talk to. It is a small
 model on a small corpus, so expect the quality of a small model — coherent
 short English and working tool traces, not frontier prose.
+
+The ready-made artifacts in this repo:
+
+| Path | What it is |
+|---|---|
+| `checkpoints/smallm_11m/model.pt` | base model (15.0M params), trained on 110.9M real tokens |
+| `checkpoints/smallm_11m_agent/model.pt` | the same model after agentic SFT (think / tool / verify) |
+| `checkpoints/smallm_11m_soup/model.pt` | uniform/greedy soup over fine-tune snapshots |
 
 ## What is real and tested
 
@@ -132,8 +145,10 @@ larger model, or a cached logit dump. This is the intended path to make a
 
 ## Honest limitations
 
-- No trained weights ship here. The architecture and recipes are real; the
-  weights are not, because that needs a cluster.
+- The shipped checkpoint (`checkpoints/smallm_11m`) is a **15M-parameter**
+  model trained on one CPU box, not the 600M/1B presets. It is a real,
+  ready-to-use artifact that demonstrates the whole pipeline end to end. The
+  600M/1B presets are the architecture targets for a GPU cluster.
 - A 1B model will **not** beat frontier 400B+ models in general. It can be
   competitive *per parameter* on narrow, verifiable, distilled tasks.
 - The sandbox `screenshot` is textual (headless environment has no display).
