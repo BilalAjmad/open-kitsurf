@@ -1,0 +1,8 @@
+torch>=2.1
+numpy>=1.24
+
+# Optional, for scaling the training pipeline on GPU:
+# transformers>=4.40
+# datasets>=2.18
+# accelerate>=0.30
+# peft>=0.10
