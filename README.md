@@ -11,6 +11,43 @@ thing: training the weights to frontier quality requires GPUs that are not
 present in the development sandbox (4 CPU cores, 15 GB RAM, no GPU). Everything
 here is verified by an automated test suite that runs on CPU.
 
+## Ready to use — train your own in one box
+
+The repository ships a complete, tested pipeline that turns real public data
+into a working chat + agent model on CPU:
+
+```bash
+# 1. real data (TinyStories), train a real BPE, tokenize a 100M+ token corpus
+curl -sL -r 0-314572799 -o data/raw/tinystories.txt \
+  https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStories-train.txt
+PYTHONPATH=src python3 scripts/prepare_data.py \
+  --raw data/raw/tinystories.txt --out-dir data/processed \
+  --vocab-size 4096 --tokenizer-sample-mb 20 --tokenize-limit-mb 250
+
+# 2. pretrain (checkpoints every N steps, resumable)
+PYTHONPATH=src python3 scripts/train_real.py \
+  --config configs/smallm_11m.json --data-dir data/processed \
+  --out checkpoints/smallm_11m --steps 1200 --batch-size 32 --seq-len 256
+
+# 3. teach it the agentic format (thinking, tools, self-verification)
+PYTHONPATH=src python3 scripts/sft_agentic.py \
+  --init checkpoints/smallm_11m/model.pt --out checkpoints/smallm_11m_agent \
+  --steps 400 --batch-size 8 --seq-len 256
+
+# 4. model soup: merge several fine-tunes (uniform + greedy)
+PYTHONPATH=src python3 scripts/make_soup.py \
+  --variants checkpoints/varA checkpoints/varB checkpoints/varC \
+  --data-dir data/processed --out checkpoints/smallm_11m_soup
+
+# 5. use it
+PYTHONPATH=src python3 scripts/chat.py --model checkpoints/smallm_11m_agent
+PYTHONPATH=src python3 scripts/chat.py --model checkpoints/smallm_11m_agent --mode agent
+```
+
+This produces a **real trained checkpoint** you can talk to. It is a small
+model on a small corpus, so expect the quality of a small model — coherent
+short English and working tool traces, not frontier prose.
+
 ## What is real and tested
 
 | Capability | Status | Where |

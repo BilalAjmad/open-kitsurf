@@ -4,6 +4,8 @@ __pycache__/
 *.egg-info/
 .agent_tmp/
 checkpoints/
+data/raw/
+data/processed/tokens.bin
 *.pt
 *.bin
 *.safetensors

@@ -57,14 +57,17 @@ class ModelConfig:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load(cls, path: str) -> "ModelConfig":
-        with open(path) as f:
-            d = json.load(f)
+    def from_dict(cls, d: dict) -> "ModelConfig":
         return cls(
             vision=VisionConfig(**d["vision"]),
             text=TextConfig(**d["text"]),
             **{k: v for k, v in d.items() if k not in ("vision", "text")},
         )
+
+    @classmethod
+    def load(cls, path: str) -> "ModelConfig":
+        with open(path) as f:
+            return cls.from_dict(json.load(f))
 
 
 def param_count(cfg: ModelConfig) -> int:

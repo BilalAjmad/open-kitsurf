@@ -6,8 +6,17 @@ important for a strict-English agent that must never silently mangle a string.
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from typing import Dict, Iterable, List, Tuple
+
+# Shared pretokenizer: alternating whitespace and non-whitespace runs. Using the
+# same function for training and inference keeps encoding lossless and consistent.
+_PRETOK_RE = re.compile(r"\s+|\S+")
+
+
+def _pretokenize(text: str) -> List[str]:
+    return _PRETOK_RE.findall(text)
 
 SPECIAL_TOKENS = [
     "<pad>",          # 0
@@ -57,6 +66,7 @@ class BPETokenizer:
         self.decoder = {i: s for s, i in vocab.items()}
         self.merges = [tuple(m) for m in merges]
         self.bpe_ranks = {tuple(m): i for i, m in enumerate(self.merges)}
+        self._cache: Dict[str, List[int]] = {}
         self.specials = specials or SPECIAL_TOKENS
         self.special_to_id = {t: self.encoder[t] for t in self.specials}
         self.pad_id = self.special_to_id["<pad>"]
@@ -69,7 +79,7 @@ class BPETokenizer:
     def train(cls, texts: Iterable[str], vocab_size: int = 4096, min_freq: int = 2):
         word_freq: Counter = Counter()
         for t in texts:
-            for word in t.split():
+            for word in _pretokenize(t):
                 word_freq[tuple(BYTE_TO_UNICODE[b] for b in word.encode("utf-8"))] += 1
 
         vocab: Dict[str, int] = {}
@@ -81,27 +91,24 @@ class BPETokenizer:
                 vocab[u] = len(vocab)
 
         merges: List[Tuple[str, str]] = []
-        words = {w: f for w, f in word_freq.items() if f >= min_freq}
+        words: Dict[Tuple[str, ...], int] = {}
+        for w, f in word_freq.items():
+            if f >= min_freq:
+                words[w] = words.get(w, 0) + f
 
-        def merge_word(word, pair, new_tok):
-            out, i = [], 0
-            while i < len(word):
-                if i < len(word) - 1 and (word[i], word[i + 1]) == pair:
-                    out.append(new_tok)
-                    i += 2
-                else:
-                    out.append(word[i])
-                    i += 1
-            return tuple(out)
+        # Incremental pair index: counts[pair] = total frequency, and
+        # where[pair][word] = frequency, so a merge updates only the words
+        # that actually contain the merged pair instead of rescanning all text.
+        counts: Counter = Counter()
+        where: Dict[Tuple[str, str], Dict[Tuple[str, ...], int]] = {}
+        for w, f in words.items():
+            for p in _get_pairs(w):
+                counts[p] += f
+                where.setdefault(p, {})
+                where[p][w] = where[p].get(w, 0) + f
 
-        while len(vocab) < vocab_size:
-            pairs: Counter = Counter()
-            for w, f in words.items():
-                for p in _get_pairs(w):
-                    pairs[p] += f
-            if not pairs:
-                break
-            best, freq = max(pairs.items(), key=lambda kv: kv[1])
+        while len(vocab) < vocab_size and counts:
+            best, freq = max(counts.items(), key=lambda kv: kv[1])
             if freq < min_freq:
                 break
             new_tok = best[0] + best[1]
@@ -109,7 +116,28 @@ class BPETokenizer:
                 break
             vocab[new_tok] = len(vocab)
             merges.append(best)
-            words = {merge_word(w, best, new_tok): f for w, f in words.items()}
+
+            for w in list(where.get(best, {}).keys()):
+                f = words.pop(w, None)
+                if f is None:
+                    continue
+                for p in _get_pairs(w):
+                    counts[p] -= f
+                    if counts[p] <= 0:
+                        counts.pop(p, None)
+                    d = where.get(p)
+                    if d:
+                        d.pop(w, None)
+                        if not d:
+                            where.pop(p, None)
+                new_w = BPETokenizer._merge(w, best)
+                words[new_w] = words.get(new_w, 0) + f
+                for p in _get_pairs(new_w):
+                    counts[p] += f
+                    where.setdefault(p, {})
+                    where[p][new_w] = where[p].get(new_w, 0) + f
+            counts.pop(best, None)
+            where.pop(best, None)
         return cls(vocab, merges)
 
     # ---- inference ------------------------------------------------------
@@ -178,13 +206,15 @@ class BPETokenizer:
 
     def _encode_plain(self, text: str) -> List[int]:
         out: List[int] = []
-        # preserve whitespace by encoding the raw text with a leading-space scheme
-        for i, word in enumerate(text.split(" ")):
-            chunk = (" " + word) if i > 0 else word
-            if chunk == "":
-                continue
-            for piece in self._bpe("".join(BYTE_TO_UNICODE[b] for b in chunk.encode("utf-8"))):
-                out.append(self.encoder.get(piece, self.encoder.get("<pad>")))
+        cache = self._cache
+        for chunk in _pretokenize(text):
+            hit = cache.get(chunk)
+            if hit is None:
+                mapped = "".join(BYTE_TO_UNICODE[b] for b in chunk.encode("utf-8"))
+                hit = [self.encoder.get(p, self.encoder.get("<pad>")) for p in self._bpe(mapped)]
+                if len(cache) < 200_000:
+                    cache[chunk] = hit
+            out.extend(hit)
         return out
 
     def decode(self, ids: List[int], skip_special: bool = True) -> str:

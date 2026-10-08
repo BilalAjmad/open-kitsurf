@@ -42,8 +42,42 @@ class ToolRegistry:
         return self.get(name).fn(**args)
 
 
+def _safe_calc(expression: str) -> str:
+    """Evaluate a arithmetic expression with no names, calls, or attributes."""
+    import ast
+    import operator
+
+    ops = {
+        ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+        ast.Div: operator.floordiv, ast.Mod: operator.mod, ast.Pow: operator.pow,
+        ast.USub: operator.neg, ast.UAdd: operator.pos,
+    }
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return ops[type(node.op)](ev(node.left), ev(node.right))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in ops:
+            return ops[type(node.op)](ev(node.operand))
+        raise ValueError("unsupported expression")
+
+    try:
+        tree = ast.parse(expression, mode="eval")
+        value = ev(tree)
+    except Exception as e:  # noqa: BLE001
+        import json
+        return json.dumps({"ok": False, "output": "", "error": str(e)})
+    import json
+    return json.dumps({"ok": True, "output": str(value), "error": ""})
+
+
 def default_registry(computer: VirtualComputer) -> ToolRegistry:
     reg = ToolRegistry()
+    reg.register(Tool("calc", "Evaluate a integer arithmetic expression.",
+                      {"expression": "str"}, _safe_calc))
     reg.register(Tool("write_file", "Write text to a file in the sandbox.",
                       {"path": "str", "content": "str"}, computer.write_file_json))
     reg.register(Tool("read_file", "Read a file from the sandbox.",

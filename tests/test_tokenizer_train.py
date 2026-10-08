@@ -10,12 +10,21 @@ from smallm.train import train_epoch, make_optimizer, DistillTrainer, DistillCon
 
 
 def test_bpe_roundtrip():
-    tok = build_tokenizer(vocab_size=600)
-    for s in ["hello world", "I do not use contractions.", "café ☕ 日本語"]:
-        ids = tok.encode(s, allow_special=True)
-        assert len(ids) > 0
-        # lossless on the non-special payload
-        assert tok.decode(ids, skip_special=False).replace("\ufffd", "") != "" or s == ""
+    tok = BPETokenizer.train(
+        ["hello world " * 50, "a a a b " * 50, "the quick brown fox " * 50],
+        vocab_size=400, min_freq=1,
+    )
+    for s in [
+        "hello world",
+        "I do not use contractions.",
+        "café ☕ 日本語",
+        "a a a a b",
+        "   spaced   out   ",
+        "line1\nline2\ttab 123",
+    ]:
+        ids = tok.encode(s, allow_special=False)
+        assert len(ids) > 0, s
+        assert tok.decode(ids, skip_special=False) == s, (s, tok.decode(ids, skip_special=False))
 
 
 def test_special_tokens_map():
