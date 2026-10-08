@@ -60,27 +60,47 @@ class SmallM(nn.Module):
         max_new_tokens: int = 64,
         eos_token_id: Optional[int] = None,
         temperature: float = 0.0,
+        repetition_penalty: float = 1.0,
+        no_repeat_ngram_size: int = 0,
+        top_k: int = 0,
     ) -> torch.Tensor:
         self.eval()
         image_embeds = self.encode_images(images) if images is not None else None
-        past = None
         cur = input_ids
         # Prime the cache with the prompt (image embeds only on first step).
         out = self.text(cur, image_embeds=image_embeds, use_cache=True, past_key_values=None)
         past = out["past_key_values"]
         next_tok = out["logits"][:, -1, :]
         for _ in range(max_new_tokens):
+            logits = next_tok.clone()
+            if repetition_penalty and repetition_penalty != 1.0:
+                for b in range(cur.shape[0]):
+                    seen = set(cur[b].tolist())
+                    for t in seen:
+                        logits[b, t] = logits[b, t] / repetition_penalty if logits[b, t] > 0 \
+                            else logits[b, t] * repetition_penalty
+            if no_repeat_ngram_size and cur.shape[1] >= no_repeat_ngram_size:
+                n = no_repeat_ngram_size
+                for b in range(cur.shape[0]):
+                    seq = cur[b].tolist()
+                    prefix = tuple(seq[-(n - 1):]) if n > 1 else ()
+                    banned = {seq[i + n - 1] for i in range(len(seq) - n + 1)
+                              if tuple(seq[i:i + n - 1]) == prefix}
+                    for t in banned:
+                        logits[b, t] = -float("inf")
             if temperature <= 0:
-                tok = next_tok.argmax(-1, keepdim=True)
+                tok = logits.argmax(-1, keepdim=True)
             else:
-                probs = torch.softmax(next_tok / temperature, dim=-1)
+                scaled = logits / temperature
+                if top_k and top_k > 0:
+                    kth = torch.topk(scaled, top_k, dim=-1).values[:, -1:]
+                    scaled = scaled.masked_fill(scaled < kth, -float("inf"))
+                probs = torch.softmax(scaled, dim=-1)
                 tok = torch.multinomial(probs, num_samples=1)
             cur = torch.cat([cur, tok], dim=1)
             if eos_token_id is not None and (tok == eos_token_id).all():
                 break
-            out = self.text(
-                tok, use_cache=True, past_key_values=past
-            )
+            out = self.text(tok, use_cache=True, past_key_values=past)
             past = out["past_key_values"]
             next_tok = out["logits"][:, -1, :]
         return cur

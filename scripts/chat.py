@@ -35,8 +35,14 @@ def load_model(model_dir: str, threads: int = 4):
     return model, tok
 
 
-def chat_once(model, tok, user: str, max_new: int = 200, temperature: float = 0.7) -> str:
-    prompt = f"<bos><system> You are SmallM. Use strict English. </system><user> {user} </user><assistant>"
+def chat_once(model, tok, user: str, max_new: int = 200, temperature: float = 0.7,
+              instruct: bool = False) -> str:
+    if instruct:
+        # use after agentic SFT, which teaches the <system>/<user> format
+        prompt = f"<bos><system> You are SmallM. Use strict English. </system><user> {user} </user><assistant>"
+    else:
+        # base mode: continue the user's text directly
+        prompt = user
     ids = torch.tensor([tok.encode(prompt, allow_special=True)])
     out = model.generate(ids, max_new_tokens=max_new, eos_token_id=tok.eos_id,
                          temperature=temperature)
@@ -52,6 +58,8 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--prompt", default=None, help="run one prompt and exit")
+    ap.add_argument("--instruct", action="store_true",
+                    help="use after agentic SFT (system/user prompt format)")
     args = ap.parse_args()
 
     model, tok = load_model(args.model, args.threads)
@@ -84,13 +92,13 @@ def main():
         return
 
     if args.prompt:
-        print(chat_once(model, tok, args.prompt, args.max_new, args.temperature))
+        print(chat_once(model, tok, args.prompt, args.max_new, args.temperature, args.instruct))
         return
     print("SmallM ready. Type a message. Ctrl-D to exit.")
     for line in sys.stdin:
         line = line.strip()
         if line:
-            print(chat_once(model, tok, line, args.max_new, args.temperature))
+            print(chat_once(model, tok, line, args.max_new, args.temperature, args.instruct))
 
 
 if __name__ == "__main__":
