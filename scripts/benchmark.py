@@ -37,8 +37,11 @@ TORCH_MODELS = {
     "nova-soup": "checkpoints/nova_ready_soup",
 }
 GGUF_MODELS = {
-    "qwen-0.5b": "models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
-    "llama-1b": "models/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "qwen2.5-0.5b": "models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
+    "llama3.2-1b": "models/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "qwen3-0.6b": "models/Qwen3-0.6B-Q8_0.gguf",
+    "gemma3-1b": "models/gemma-3-1b-it-Q4_K_M.gguf",
+    "deepseek-r1-1.5b": "models/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
 }
 
 # ---- evaluation text (fixed, so every model sees the same bytes) -----------
@@ -263,7 +266,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lm", action="store_true")
     ap.add_argument("--agent", action="store_true")
-    ap.add_argument("--model", default="qwen-0.5b")
+    ap.add_argument("--model", default="qwen3-0.6b")
     ap.add_argument("--report", action="store_true")
     args = ap.parse_args()
 

@@ -56,16 +56,22 @@ def _to_openai_tools(tools: List[dict]) -> List[dict]:
 
 
 def _to_chat(messages: List[Message]) -> List[Dict[str, str]]:
-    chat = [{"role": "system", "content": SYSTEM}]
+    """Build a chat that satisfies strict user/assistant alternation.
+
+    The loop mixes in ``system`` and ``tool`` messages mid-conversation. Gemma's
+    template rejects any non-alternating history, so every non-assistant message
+    becomes a ``user`` turn and consecutive same-role turns are merged.
+    """
+    chat: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM}]
     for m in messages:
-        if m.role == "tool":
-            chat.append({"role": "user", "content": f"Observation: {m.content}"})
-        elif m.role == "assistant":
-            chat.append({"role": "assistant", "content": m.content})
-        elif m.role == "system":
-            chat.append({"role": "system", "content": m.content})
+        role = "assistant" if m.role == "assistant" else "user"
+        text = m.content if m.role != "tool" else f"Observation: {m.content}"
+        if chat[-1]["role"] == role:
+            chat[-1]["content"] += "\n" + text
         else:
-            chat.append({"role": "user", "content": m.content})
+            chat.append({"role": role, "content": text})
+    if len(chat) == 1 or chat[1]["role"] != "user":
+        chat.insert(1, {"role": "user", "content": "(begin)"})
     return chat
 
 

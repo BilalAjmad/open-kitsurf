@@ -7,8 +7,11 @@ models with different vocabularies are compared fairly.
 
 | Model | bits/byte | CE (nats) | tokens |
 |---|---|---|---|
-| llama-1b | 0.608 | 1.917 | 117 |
-| qwen-0.5b | 0.656 | 2.086 | 116 |
+| llama3.2-1b | 0.608 | 1.917 | 117 |
+| qwen2.5-0.5b | 0.656 | 2.086 | 116 |
+| qwen3-0.6b | 0.732 | 2.325 | 116 |
+| gemma3-1b | 0.742 | 2.339 | 117 |
+| deepseek-r1-1.5b | 0.997 | 3.141 | 117 |
 | teacher-11m | 1.220 | 3.814 | 118 |
 | nova-base | 1.287 | 4.023 | 118 |
 | nova-soup | 1.291 | 4.035 | 118 |
@@ -20,8 +23,11 @@ models with different vocabularies are compared fairly.
 
 | Model | correct | accuracy | false passes |
 |---|---|---|---|
-| qwen-0.5b | 11/11 | 100% | 0 |
-| llama-1b | 2/11 | 18% | 0 |
+| qwen2.5-0.5b | 11/11 | 100% | 0 |
+| qwen3-0.6b | 11/11 | 100% | 0 |
+| deepseek-r1-1.5b | 8/11 | 73% | 2 |
+| gemma3-1b | 5/11 | 45% | 3 |
+| llama3.2-1b | 2/11 | 18% | 0 |
 | nova-agent | 1/11 | 9% | 3 |
 | nova-base | 0/11 | 0% | 10 |
 

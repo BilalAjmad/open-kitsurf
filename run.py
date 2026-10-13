@@ -111,6 +111,9 @@ def vision(_prompt, _max_new, _temperature):
 REAL = {
     "qwen": "models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
     "llama": "models/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "qwen3": "models/Qwen3-0.6B-Q8_0.gguf",
+    "gemma3": "models/gemma-3-1b-it-Q4_K_M.gguf",
+    "deepseek": "models/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
 }
 
 
@@ -134,28 +137,34 @@ def benchmark(which: str) -> None:
 
 def menu():
     print("SmallM - pick what to run:\n")
-    print("  --- real off-the-shelf models (strongest, need the GGUF download) ---")
-    print("  1. qwen    Qwen2.5-0.5B  chat      (benchmark 6/6)")
-    print("  2. qwen-a  Qwen2.5-0.5B  agent")
-    print("  3. llama   Llama-3.2-1B  chat      (benchmark 2/6)")
+    print("  --- real models (2026), strongest agents ---")
+    print("  1. qwen3    Qwen3-0.6B     chat/agent   (agent 11/11)")
+    print("  2. qwen     Qwen2.5-0.5B   chat/agent   (agent 11/11)")
+    print("  3. deepseek DeepSeek-R1-1.5B agent       (agent  8/11)")
+    print("  4. gemma3   Gemma-3-1B     chat/agent   (agent  5/11)")
+    print("  5. llama    Llama-3.2-1B   chat/agent   (agent  2/11)")
     print("  --- our own trained Nova (already in checkpoints/) ---")
-    for i, (name, path) in enumerate(MODELS.items(), 4):
+    for i, (name, path) in enumerate(MODELS.items(), 6):
         ok = "ready" if os.path.exists(os.path.join(path, "model.pt")) else "MISSING"
         print(f"  {i}. {name:7} chat      ({ok})")
     choice = input("\nChoice [1]: ").strip().lower() or "1"
-    if choice in ("1", "qwen"):
-        real("qwen", "chat")
-    elif choice in ("2", "qwen-a"):
-        real("qwen", "agent")
-    elif choice in ("3", "llama"):
-        real("llama", "chat")
-    elif choice in ("4", "base"):
+    if choice in ("1", "qwen3"):
+        real("qwen3", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
+    elif choice in ("2", "qwen"):
+        real("qwen", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
+    elif choice in ("3", "deepseek"):
+        real("deepseek", "agent")
+    elif choice in ("4", "gemma3"):
+        real("gemma3", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
+    elif choice in ("5", "llama"):
+        real("llama", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
+    elif choice in ("6", "base"):
         chat("base", None, 120, 0.7)
-    elif choice in ("5", "soup"):
+    elif choice in ("7", "soup"):
         chat("soup", None, 120, 0.7)
-    elif choice in ("6", "agent"):
+    elif choice in ("8", "agent"):
         agent("agent", None, 256, 0.0)
-    elif choice in ("7", "vision"):
+    elif choice in ("9", "vision"):
         vision(None, None, None)
     else:
         print("unknown choice")

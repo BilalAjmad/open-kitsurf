@@ -1,18 +1,18 @@
 {
-  "model": "qwen-0.5b",
+  "model": "gemma3-1b",
   "n_tasks": 11,
-  "correct": 11,
-  "accuracy": 1.0,
-  "false_passes": 0,
+  "correct": 5,
+  "accuracy": 0.45454545454545453,
+  "false_passes": 3,
   "rows": [
     {
       "task": "Compute 13+12.",
       "expected": 25,
-      "got": 25,
+      "got": 15,
       "passed": true,
-      "correct": true,
-      "false_pass": false,
-      "iters": 2
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
     },
     {
       "task": "Compute 7*6.",
@@ -21,16 +21,16 @@
       "passed": true,
       "correct": true,
       "false_pass": false,
-      "iters": 2
+      "iters": 1
     },
     {
       "task": "Compute 4839*27.",
       "expected": 130653,
-      "got": 130653,
+      "got": 1334413,
       "passed": true,
-      "correct": true,
-      "false_pass": false,
-      "iters": 2
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
     },
     {
       "task": "Compute 100000-1.",
@@ -39,25 +39,25 @@
       "passed": true,
       "correct": true,
       "false_pass": false,
-      "iters": 2
+      "iters": 1
     },
     {
       "task": "Compute 98765/5.",
       "expected": 19753,
-      "got": 19753,
+      "got": 1975,
       "passed": true,
-      "correct": true,
-      "false_pass": false,
-      "iters": 2
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
     },
     {
       "task": "Compute 2+2.",
       "expected": 4,
-      "got": 4,
-      "passed": true,
-      "correct": true,
+      "got": 2,
+      "passed": false,
+      "correct": false,
       "false_pass": false,
-      "iters": 2
+      "iters": 3
     },
     {
       "task": "Compute 15*4.",
@@ -66,25 +66,25 @@
       "passed": true,
       "correct": true,
       "false_pass": false,
-      "iters": 2
+      "iters": 1
     },
     {
       "task": "Compute 100-37.",
       "expected": 63,
-      "got": 63,
-      "passed": true,
-      "correct": true,
+      "got": -37,
+      "passed": false,
+      "correct": false,
       "false_pass": false,
-      "iters": 2
+      "iters": 3
     },
     {
       "task": "Compute 81/9.",
       "expected": 9,
       "got": 9,
-      "passed": true,
+      "passed": false,
       "correct": true,
       "false_pass": false,
-      "iters": 2
+      "iters": 3
     },
     {
       "task": "Compute 12+30.",
@@ -93,16 +93,16 @@
       "passed": true,
       "correct": true,
       "false_pass": false,
-      "iters": 2
+      "iters": 1
     },
     {
       "task": "Create note.txt with the content hello. Then read it back.",
       "expected": "note.txt=hello",
-      "got": true,
-      "passed": true,
-      "correct": true,
+      "got": false,
+      "passed": false,
+      "correct": false,
       "false_pass": false,
-      "iters": 2
+      "iters": 3
     }
   ]
 }
