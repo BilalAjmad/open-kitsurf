@@ -98,6 +98,22 @@ This produces a **real trained checkpoint** you can talk to. It is a small
 model on a small corpus, so expect the quality of a small model — coherent
 short English and working tool traces, not frontier prose.
 
+### Ready-to-use SmallM-Nova (the new architecture, trained)
+
+`scripts/pipeline_nova_ready.sh` produces a **fully ready Nova** quickly: it
+warm-starts the new architecture from a trained checkpoint (same block
+contract), then **distils** the teacher into it (KL on the logits + hard CE),
+then instruction- and agentic-tunes it. Distillation reached CE **3.82** against
+the teacher's ~3.56, and the result chats in coherent English.
+
+```bash
+nohup bash scripts/watchdog.sh .logs/pipeline_ready.log \
+  bash scripts/pipeline_nova_ready.sh >/dev/null 2>&1 &
+
+PYTHONPATH=.pylibs:src python3 scripts/chat.py --model checkpoints/nova_ready
+PYTHONPATH=.pylibs:src python3 scripts/chat.py --model checkpoints/nova_ready_agent --mode agent
+```
+
 ### SmallM-Nova — a brand-new architecture (recurrent-depth transformer)
 
 Nova is not the plain stack. It is a **recurrent-depth** transformer: the block
@@ -308,6 +324,9 @@ scripts/sft_agentic.py   agentic SFT (think / tool / verify traces)
 scripts/sft_instruct.py  instruction SFT on real Dolly-15k
 scripts/pipeline_smallm.sh  durable end-to-end training for the 30M model
 scripts/pipeline_nova.sh    durable from-scratch training for the Nova architecture
+scripts/pipeline_nova_ready.sh  ready Nova: transplant -> distill -> SFT
+scripts/transplant_to_nova.py   warm-start Nova from a trained checkpoint
+scripts/distill_nova.py         distill a teacher into Nova (KL + CE)
 scripts/watchdog.sh      keep a long run alive across restarts
 scripts/make_soup.py     uniform / greedy model soup
 scripts/chat.py          chat CLI for a checkpoint you trained (base/instruct/agent)
