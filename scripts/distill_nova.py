@@ -56,6 +56,8 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--log-every", type=int, default=25)
     ap.add_argument("--save-every", type=int, default=200)
+    ap.add_argument("--snapshot-dir", default="", help="save snap_<step>.pt here for soup")
+    ap.add_argument("--snapshot-every", type=int, default=0)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
@@ -148,6 +150,11 @@ def main() -> None:
             torch.save({"model": {k: v.cpu() for k, v in student.state_dict().items()},
                         "config": scfg.to_dict()},
                        os.path.join(args.out, "model.pt"))
+            if args.snapshot_dir and args.snapshot_every and (step + 1) % args.snapshot_every == 0:
+                os.makedirs(args.snapshot_dir, exist_ok=True)
+                torch.save({"model": {k: v.cpu() for k, v in student.state_dict().items()},
+                            "config": scfg.to_dict()},
+                           os.path.join(args.snapshot_dir, f"snap_{step+1}.pt"))
             print(f"saved distillation checkpoint at step {step+1}", flush=True)
 
     # report: how close is the student to the teacher now?

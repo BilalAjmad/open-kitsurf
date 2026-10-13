@@ -125,6 +125,29 @@ def test_nova_generate_matches_cache_and_no_cache():
     assert torch.equal(a, full)
 
 
+def test_nova_is_multimodal_vision_and_text():
+    # the new architecture must still consume real pixels through the vision tower
+    cfg = tiny_cfg()
+    cfg.text.arch = "nova"
+    cfg.text.num_recurrent_steps = 2
+    model = build_model(cfg).eval()
+    n_img = cfg.vision.num_visual_tokens
+    ids = torch.tensor([[1] + [cfg.image_token_id] * n_img + [10, 11, 12]])
+    images = torch.randn(1, 3, cfg.vision.image_size, cfg.vision.image_size)
+    out = model(input_ids=ids, images=images)
+    assert out["logits"].shape == (1, ids.shape[1], cfg.text.vocab_size)
+    assert torch.isfinite(out["logits"]).all()
+    gen = model.generate(ids, images=images, max_new_tokens=4)
+    assert gen.shape[0] == 1 and gen.shape[1] > ids.shape[1]
+    # a wrong number of image tokens must be rejected, not silently misaligned
+    bad = torch.tensor([[1] + [cfg.image_token_id] * (n_img - 1)])
+    try:
+        model(input_ids=bad, images=images)
+        raise AssertionError("expected a mismatch error")
+    except ValueError:
+        pass
+
+
 def _load_transplant():
     import importlib.util
     path = os.path.join(os.path.dirname(__file__), "..", "scripts", "transplant_to_nova.py")
