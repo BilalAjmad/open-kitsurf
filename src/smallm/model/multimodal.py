@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from ..config import ModelConfig
+from .ageis import AgeisModel
 from .nova import NovaModel
 from .text_model import TextModel
 from .vision import Projector, VisionEncoder
@@ -15,6 +16,8 @@ from .vision import Projector, VisionEncoder
 def build_text_backbone(cfg):
     """Pick the text backbone from `cfg.arch`."""
     arch = getattr(cfg, "arch", "transformer")
+    if arch == "ageis":
+        return AgeisModel(cfg)
     if arch == "nova":
         return NovaModel(cfg)
     if arch == "transformer":

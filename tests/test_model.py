@@ -241,3 +241,59 @@ def test_moe_forward():
     ids = torch.randint(0, 512, (2, 12))
     out = model(ids, labels=ids)
     assert torch.isfinite(out["loss"])
+
+
+def ageis_cfg(steps=2):
+    return ModelConfig(
+        vision=VisionConfig(image_size=32, patch_size=16, hidden_size=64,
+                            num_hidden_layers=2, num_attention_heads=4,
+                            projector_hidden=128, num_visual_tokens=4),
+        text=TextConfig(vocab_size=512, hidden_size=64, num_hidden_layers=2,
+                        num_attention_heads=4, num_key_value_heads=2,
+                        intermediate_size=128, max_seq_len=64, arch="ageis",
+                        num_recurrent_steps=steps),
+    )
+
+
+def test_ageis_forward_and_loss():
+    model = build_model(ageis_cfg()).train()
+    ids = torch.randint(0, 512, (2, 16))
+    out = model(ids, labels=ids)
+    assert out["logits"].shape == (2, 16, 512)
+    assert torch.isfinite(out["loss"])
+    out["loss"].backward()
+    assert any(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in model.parameters())
+    # the learned loop gate must actually receive a gradient
+    assert model.text.loop_gate.grad is not None
+
+
+def test_ageis_recurrence_adds_no_blocks():
+    cfg1 = ageis_cfg(steps=1)
+    cfg3 = ageis_cfg(steps=3)
+    p1 = sum(p.numel() for p in build_model(cfg1).parameters())
+    p3 = sum(p.numel() for p in build_model(cfg3).parameters())
+    # only the step embedding and the scalar gate differ
+    assert p3 - p1 == 2 * cfg1.text.hidden_size + 2
+
+
+def test_ageis_generate_matches_manual_greedy():
+    model = build_model(ageis_cfg()).eval()
+    ids = torch.randint(0, 512, (1, 8))
+    a = model.generate(ids, max_new_tokens=5, eos_token_id=-1, temperature=0.0)
+    full = ids
+    for _ in range(5):
+        logits = model(full)["logits"][:, -1, :]
+        full = torch.cat([full, logits.argmax(-1, keepdim=True)], dim=1)
+    assert torch.equal(a, full)
+
+
+def test_ageis_is_multimodal():
+    cfg = ageis_cfg()
+    model = build_model(cfg).eval()
+    n_img = cfg.vision.num_visual_tokens
+    ids = torch.tensor([[1] + [cfg.image_token_id] * n_img + [10, 11, 12]])
+    images = torch.randn(1, 3, cfg.vision.image_size, cfg.vision.image_size)
+    out = model(input_ids=ids, images=images)
+    assert out["logits"].shape == (1, ids.shape[1], cfg.text.vocab_size)
+    assert torch.isfinite(out["logits"]).all()

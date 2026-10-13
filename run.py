@@ -26,6 +26,9 @@ MODELS = {
     "soup": "checkpoints/nova_ready_soup",   # model soup, slightly better
     "agent": "checkpoints/nova_ready_agent", # think / tool / verify
     "vision": "checkpoints/nova_vision",     # sees images
+    "ageis": "checkpoints/ageis_15m",        # from-scratch gated recurrent model
+    "ageis-agent": "checkpoints/ageis_agent",
+    "ageis-vision": "checkpoints/ageis_vision",
 }
 
 
@@ -143,10 +146,10 @@ def menu():
     print("  3. deepseek DeepSeek-R1-1.5B agent       (agent  8/11)")
     print("  4. gemma3   Gemma-3-1B     chat/agent   (agent  5/11)")
     print("  5. llama    Llama-3.2-1B   chat/agent   (agent  2/11)")
-    print("  --- our own trained Nova (already in checkpoints/) ---")
+    print("  --- our own trained models (already in checkpoints/) ---")
     for i, (name, path) in enumerate(MODELS.items(), 6):
         ok = "ready" if os.path.exists(os.path.join(path, "model.pt")) else "MISSING"
-        print(f"  {i}. {name:7} chat      ({ok})")
+        print(f"  {i}. {name:11} chat      ({ok})")
     choice = input("\nChoice [1]: ").strip().lower() or "1"
     if choice in ("1", "qwen3"):
         real("qwen3", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
@@ -158,16 +161,22 @@ def menu():
         real("gemma3", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
     elif choice in ("5", "llama"):
         real("llama", "agent" if input("agent mode? [y/N] ").strip().lower() == "y" else "chat")
-    elif choice in ("6", "base"):
-        chat("base", None, 120, 0.7)
-    elif choice in ("7", "soup"):
-        chat("soup", None, 120, 0.7)
-    elif choice in ("8", "agent"):
-        agent("agent", None, 256, 0.0)
-    elif choice in ("9", "vision"):
-        vision(None, None, None)
     else:
-        print("unknown choice")
+        # Trained models: accept the name or the menu number (6, 7, ...).
+        names = list(MODELS)
+        if choice in names:
+            picked = choice
+        elif choice.isdigit() and 6 <= int(choice) < 6 + len(names):
+            picked = names[int(choice) - 6]
+        else:
+            print("unknown choice")
+            return
+        if picked in ("agent", "ageis-agent"):
+            agent(picked, None, 256, 0.0)
+        elif picked in ("vision", "ageis-vision"):
+            vision(None, None, None)
+        else:
+            chat(picked, None, 120, 0.7)
 
 
 def main() -> None:
