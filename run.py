@@ -123,6 +123,15 @@ def real(name: str, mode: str) -> None:
               [sys.executable, script, "--gguf", REAL[name], "--mode", mode], env)
 
 
+def benchmark(which: str) -> None:
+    """Run the strict, real benchmark across all models."""
+    script = os.path.join(ROOT, "scripts", "benchmark.py")
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.path.join(ROOT, ".pylibs") + os.pathsep + os.path.join(ROOT, "src")
+    flag = {"lm": "--lm", "agent": "--agent", "report": "--report"}[which]
+    os.execve(sys.executable, [sys.executable, script, flag], env)
+
+
 def menu():
     print("SmallM - pick what to run:\n")
     print("  --- real off-the-shelf models (strongest, need the GGUF download) ---")
@@ -160,6 +169,12 @@ def main() -> None:
     # Real GGUF models: `run.py qwen`, `run.py llama --agent`.
     if cmd in REAL:
         real(cmd, "agent" if "--agent" in rest else "chat")
+        return
+
+    # Strict benchmark: `run.py bench` (report), `run.py bench --lm`, `--agent`.
+    if cmd == "bench":
+        which = "lm" if "--lm" in rest else "agent" if "--agent" in rest else "report"
+        benchmark(which)
         return
 
     # Each mode has a sensible default model; --model can still override it.

@@ -1,0 +1,108 @@
+{
+  "model": "nova-base",
+  "n_tasks": 11,
+  "correct": 0,
+  "accuracy": 0.0,
+  "false_passes": 10,
+  "rows": [
+    {
+      "task": "Compute 13+12.",
+      "expected": 25,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 7*6.",
+      "expected": 42,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 2
+    },
+    {
+      "task": "Compute 4839*27.",
+      "expected": 130653,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 100000-1.",
+      "expected": 99999,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 98765/5.",
+      "expected": 19753,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 2+2.",
+      "expected": 4,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 15*4.",
+      "expected": 60,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 100-37.",
+      "expected": 63,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 81/9.",
+      "expected": 9,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Compute 12+30.",
+      "expected": 42,
+      "got": null,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 1
+    },
+    {
+      "task": "Create note.txt with the content hello. Then read it back.",
+      "expected": "note.txt=hello",
+      "got": false,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 3
+    }
+  ]
+}
