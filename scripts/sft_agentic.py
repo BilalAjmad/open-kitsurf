@@ -28,18 +28,20 @@ from smallm.tokenizer import BPETokenizer
 from smallm.train import make_optimizer
 
 
-def encode_pair(prompt: str, response: str, tok: BPETokenizer, seq_len: int):
+def encode_pair(prompt: str, response: str, tok: BPETokenizer, seq_len: int,
+                train_on_prompt: bool = False):
     p = tok.encode(prompt, allow_special=True)
     r = tok.encode(response, allow_special=True)
     ids = (p + r)[:seq_len]
-    labels = ([-100] * len(p) + r)[:seq_len]
+    prefix = p if train_on_prompt else [-100] * len(p)
+    labels = (prefix + r)[:seq_len]
     return ids, labels
 
 
-def pad_batch(pairs, tok, seq_len):
+def pad_batch(pairs, tok, seq_len, train_on_prompt: bool = False):
     rows, labs = [], []
     for prompt, resp in pairs:
-        ids, lab = encode_pair(prompt, resp, tok, seq_len)
+        ids, lab = encode_pair(prompt, resp, tok, seq_len, train_on_prompt)
         while len(ids) < seq_len:
             ids.append(tok.pad_id)
             lab.append(-100)
@@ -62,6 +64,12 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--save-every", type=int, default=200)
+    ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--n-calc", type=int, default=320)
+    ap.add_argument("--n-file", type=int, default=60)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--train-on-prompt", action="store_true",
+                    help="also compute loss on prompt tokens (full-sequence loss)")
     args = ap.parse_args()
 
     torch.set_num_threads(args.threads)
@@ -75,7 +83,9 @@ def main():
     tok = BPETokenizer.load(args.tokenizer)
     print(f"SFT on {sum(p.numel() for p in model.parameters())/1e6:.1f}M params", flush=True)
 
-    pairs = build_agentic_sft_pairs(repeats=3)
+    pairs = build_agentic_sft_pairs(
+        seed=args.seed, repeats=args.repeats, n_calc=args.n_calc, n_file=args.n_file
+    )
     print(f"agentic SFT pairs = {len(pairs)}", flush=True)
     opt = make_optimizer(model, lr=args.lr)
     model.train()
@@ -83,7 +93,7 @@ def main():
     for step in range(args.steps):
         batch_pairs = [pairs[(step * args.batch_size + i) % len(pairs)]
                        for i in range(args.batch_size)]
-        batch = pad_batch(batch_pairs, tok, args.seq_len)
+        batch = pad_batch(batch_pairs, tok, args.seq_len, args.train_on_prompt)
         out = model(input_ids=batch["input_ids"], labels=batch["labels"])
         opt.zero_grad(set_to_none=True)
         out["loss"].backward()

@@ -74,6 +74,29 @@ def _safe_calc(expression: str) -> str:
     return json.dumps({"ok": True, "output": str(value), "error": ""})
 
 
+def with_vision(computer: VirtualComputer, reg: ToolRegistry, vlm) -> ToolRegistry:
+    """Add a real `see` tool backed by a vision-language model.
+
+    The agent reads an image from its sandbox and gets a real answer about it.
+    """
+    import json
+
+    def _see(path: str, question: str) -> str:
+        from PIL import Image
+
+        full = computer.root / path
+        try:
+            img = Image.open(full).convert("RGB")
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"ok": False, "output": "", "error": str(e)})
+        ans = vlm.ask(img, question)
+        return json.dumps({"ok": True, "output": ans.answer, "error": ""})
+
+    reg.register(Tool("see", "Answer a question about an image file in the sandbox.",
+                      {"path": "str", "question": "str"}, _see))
+    return reg
+
+
 def default_registry(computer: VirtualComputer) -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(Tool("calc", "Evaluate a integer arithmetic expression.",

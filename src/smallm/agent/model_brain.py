@@ -15,17 +15,8 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from ..data.agentic import SYSTEM_PROMPT
 from .loop import Brain, Message
-
-SYSTEM_PROMPT = (
-    "You are SmallM, a strict-English agent. "
-    "Think inside  thinking and </think>. "
-    "Call a tool with <tool_call>{\"name\": ..., \"args\": {...}}</tool_call>. "
-    "Check your own work inside <verify> and </verify>. "
-    "Use short sentences. Do not use contractions. "
-    "Never use exclamation marks or semicolons. "
-    "Answer only when the work is verified."
-)
 
 _TOOL_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 _THINK_RE = re.compile(r" thinking(.*?)</think>", re.DOTALL)
@@ -33,13 +24,32 @@ _VERIFY_RE = re.compile(r"<verify>(.*?)</verify>", re.DOTALL)
 
 
 def render_prompt(messages: List[Message], tools: List[dict]) -> str:
-    lines = [f"<bos><system> {SYSTEM_PROMPT}"]
-    if tools:
-        lines.append("Tools: " + json.dumps(tools))
+    """Rebuild the exact token layout the agentic SFT traces use.
+
+    The layout is fixed: one <system> turn, then alternating <user> turns,
+    <assistant> turns that contain a thought and optional tool call, and
+    <tool_result> turns. The model was fine-tuned on this layout, so inference
+    must reproduce it byte for byte.
+    """
+    parts = [f"<bos><system> {SYSTEM_PROMPT} </system>"]
     for m in messages:
-        lines.append(f"<{m.role}> {m.content}")
-    lines.append("<assistant>")
-    return "\n".join(lines)
+        if m.role == "tool":
+            parts.append(f"<tool_result> {m.content} </tool_result>")
+        elif m.role == "assistant":
+            try:
+                d = json.loads(m.content)
+            except (json.JSONDecodeError, TypeError):
+                parts.append(f"<assistant> {m.content}")
+                continue
+            seg = f"<assistant>  thinking{d.get('thought', '')}</think>"
+            if "tool" in d:
+                call = {"name": d["tool"], "args": d.get("args", {})}
+                seg += f"<tool_call>{json.dumps(call)}</tool_call>"
+            parts.append(seg)
+        else:
+            parts.append(f"<{m.role}> {m.content} </{m.role}>")
+    parts.append("<assistant>")
+    return "".join(parts)
 
 
 def parse_decision(text: str) -> Dict[str, Any]:
@@ -55,7 +65,8 @@ def parse_decision(text: str) -> Dict[str, Any]:
         try:
             payload = json.loads(tool.group(1))
             decision["tool"] = payload["name"]
-            decision["args"] = payload.get("args", {})
+            # "arguments" is what Qwen/Llama chat templates emit; "args" is ours.
+            decision["args"] = payload.get("args", payload.get("arguments", {})) or {}
             return decision
         except (json.JSONDecodeError, KeyError):
             return {"thought": "failed to parse tool call"}
@@ -66,17 +77,32 @@ def parse_decision(text: str) -> Dict[str, Any]:
     for tok in ("<bos>", "<eos>", "<pad>", "<assistant>", "<user>", "<system>"):
         answer = answer.replace(tok, "")
     answer = answer.strip()
+    m = re.search(r"The answer is\s*(-?\d+)", answer)
+    if m:
+        answer = f"The answer is {m.group(1)}."
     if answer:
         decision["answer"] = answer
     return decision
 
 
 class ModelBrain(Brain):
-    def __init__(self, model, tokenizer, max_new_tokens: int = 256, temperature: float = 0.0):
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        max_new_tokens: int = 256,
+        temperature: float = 0.0,
+        repetition_penalty: float = 1.05,
+        no_repeat_ngram_size: int = 0,
+    ):
         self.model = model
         self.tokenizer = tokenizer
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        # Gentle penalties: a strong repetition penalty pushes the model away
+        # from the exact tokens it must copy from the user turn.
+        self.repetition_penalty = repetition_penalty
+        self.no_repeat_ngram_size = no_repeat_ngram_size
 
     @torch.no_grad()
     def think(self, messages: List[Message], tools: List[dict]) -> Dict[str, Any]:
@@ -87,10 +113,25 @@ class ModelBrain(Brain):
             max_new_tokens=self.max_new_tokens,
             eos_token_id=self.tokenizer.eos_id,
             temperature=self.temperature,
-            repetition_penalty=1.2,
-            no_repeat_ngram_size=4,
+            repetition_penalty=self.repetition_penalty,
+            no_repeat_ngram_size=self.no_repeat_ngram_size,
         )
         gen_ids = out[0, ids.shape[1]:].tolist()
         # keep special tokens so parse_decision can see  thinking/<tool_call>/<verify>
         text = self.tokenizer.decode(gen_ids, skip_special=False)
-        return parse_decision(text)
+        return parse_decision(_truncate_at_boundary(text))
+
+
+def _truncate_at_boundary(text: str) -> str:
+    """Cut off text the model must not generate itself.
+
+    A small model can drift after the turn it meant to produce. The loop owns
+    <tool_result> and <eos>, and an assistant turn never continues past
+    </tool_call>. Cutting at the earliest boundary keeps the parse clean.
+    """
+    cut = len(text)
+    for marker in ("<tool_result>", "<eos>", "</tool_call>"):
+        i = text.find(marker)
+        if i != -1:
+            cut = min(cut, i + len(marker))
+    return text[:cut]

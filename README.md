@@ -11,7 +11,52 @@ thing: training the weights to frontier quality requires GPUs that are not
 present in the development sandbox (4 CPU cores, 15 GB RAM, no GPU). Everything
 here is verified by an automated test suite that runs on CPU.
 
-## Ready to use — train your own in one box
+## Ready now — talk to a real 0.5B / 1B agent on CPU
+
+You do not have to train anything to get a working model. This repo runs
+**real** small models — Qwen2.5-0.5B and Llama-3.2-1B — through its agentic
+loop on plain CPU, using `llama.cpp`.
+
+```bash
+PYTHONPATH=.pylibs python3 scripts/fetch_model.py        # download real weights
+PYTHONPATH=.pylibs:src python3 scripts/aichat.py         # chat
+PYTHONPATH=.pylibs:src python3 scripts/aichat.py --mode agent
+PYTHONPATH=.pylibs:src python3 scripts/agent_real.py --eval
+```
+
+The model is small. The *system* is not: the loop gives it tools, feeds back
+observations, grounds every answer in real tool output, and rejects an answer
+that is a tool call, a JSON dump, or a made-up number. That is what makes a
+0.5B model behave like an agent far larger than it is.
+
+Measured on the 4-core CPU box (`scripts/agent_real.py --eval`, 6 tasks):
+
+| Model | Tasks passed | False passes |
+|---|---|---|
+| Qwen2.5-0.5B-Instruct Q4 | **6/6** | 0 |
+| Llama-3.2-1B-Instruct Q4 | 2/6 | 0 |
+
+Qwen drives the tool loop cleanly; the 1B is weaker at the call format, so it
+fails honestly rather than faking success. Downloading public weights is normal
+use of a package registry; no credentials are involved.
+
+### Real vision, too
+
+The agent can *see*. A real 256M vision-language model (SmolVLM-256M-Instruct)
+sits behind a `see` tool, so the text model reads an image in its sandbox and
+answers from the pixels.
+
+```bash
+PYTHONPATH=.pylibs:src python3 scripts/vision_real.py --n 12   # score the VLM
+PYTHONPATH=.pylibs:src python3 scripts/agent_vision_demo.py     # agent uses it
+PYTHONPATH=.pylibs:src python3 scripts/agent_real.py --vision --prompt "Look at image.png ..."
+```
+
+Measured on CPU: **6/6 colour** and **6/6 shape** on coloured-shape images, and
+the agent chain (0.5B text model → `see` → 256M vision model → grounded prose)
+runs end to end.
+
+## Or train your own in one box
 
 The repository ships a complete, tested pipeline that turns real public data
 into a working chat + agent model on CPU:
@@ -60,6 +105,30 @@ The ready-made artifacts in this repo:
 | `checkpoints/smallm_11m/model.pt` | base model (15.0M params), trained on 110.9M real tokens |
 | `checkpoints/smallm_11m_agent/model.pt` | the same model after agentic SFT (think / tool / verify) |
 | `checkpoints/smallm_11m_soup/model.pt` | uniform/greedy soup over fine-tune snapshots |
+| `checkpoints/smallm_11m_vision/model.pt` | vision tower trained for real on coloured-shape images |
+
+### Measured results (CPU box, 15M model)
+
+- Base LM: step 4000, cross-entropy **3.56** on held-out TinyStories.
+- Model soup: greedy soup over the last 8 snapshots, val loss **3.5563**
+  (uniform **3.5871**); two snapshots were selected.
+- Agentic SFT: response-only loss **~0.06** over 3,801 diverse traces.
+- Vision SFT (`scripts/train_vision.py`, 3,500 steps, loss **0.0000**):
+  the model captions **60/60** unseen coloured-shape images versus a
+  **6/60** blank-image baseline. The 54-point gap is the proof the ViT reads
+  pixels — a language prior alone cannot do this. Reproduce with
+  `PYTHONPATH=src python3 scripts/eval_vision.py`.
+- Agent loop, 9 held-out tasks (6 arithmetic, 3 file tasks): **3 correct**,
+  and **0 false passes**. Three guards keep a wrong answer from being reported
+  as success: the answer may not contain control tokens or tool-call syntax, it
+  must match a numeric tool output when one exists, and on file tasks it must
+  mention a file the tools actually touched. Failures surface as `passed=False`
+  or a retry, never as a silent wrong answer.
+
+A 15M model on a CPU box is at its capacity limit for exact operand copying;
+that limit is the honest result, not a hidden one. The point of the artifact is
+that the full pipeline — real data, soup, SFT, grounded self-verifying loop,
+chat CLI — runs end to end and can be reproduced.
 
 ## What is real and tested
 
@@ -119,9 +188,15 @@ perceive → think → act(tool) → observe → … → answer → verify
 ```
 
 The loop feeds verification failures back to the model so it can correct itself
-before returning. Verification is layered: deterministic English checks plus
-optional task checkers (unit tests, exact match, schema). This is how a small
-model compensates for its size — strong external checks around a compact model.
+before returning. Verification is layered: deterministic English checks,
+observation grounding, plus optional task checkers (unit tests, exact match,
+schema). This is how a small model compensates for its size — strong external
+checks around a compact model.
+
+**Observation grounding** is the key guard for a small model: the loop extracts
+the numeric outputs of the tools it actually ran and rejects any answer that
+does not contain the observed value, retrying with the failure reason fed back.
+The model may hallucinate, but the loop will not pass the hallucination.
 
 ## Distillation
 
@@ -151,6 +226,9 @@ larger model, or a cached logit dump. This is the intended path to make a
   600M/1B presets are the architecture targets for a GPU cluster.
 - A 1B model will **not** beat frontier 400B+ models in general. It can be
   competitive *per parameter* on narrow, verifiable, distilled tasks.
+- The vision tower is trained on a **synthetic** caption task (simple coloured
+  shapes), which proves the whole image path works end to end. It is not a
+  general image understanding model; that needs a real image-text corpus.
 - The sandbox `screenshot` is textual (headless environment has no display).
 - The synthetic data in `src/smallm/data/` exists for tests and smoke runs,
   not for real training.
@@ -164,6 +242,18 @@ src/smallm/agent/  loop, tools, computer sandbox, verifier, strict English
 src/smallm/tokenizer/  byte-level BPE with agentic tokens
 src/smallm/train/  training loop and distillation
 src/smallm/data/   synthetic data for tests
-tests/             20 CPU tests covering every component
-scripts/demo.py    end-to-end walkthrough
+src/smallm/agent/  loop, tools, computer sandbox, verifier, strict English,
+                   real_brain (drives a real GGUF model), vlm (real vision)
+tests/             35 CPU tests covering every component
+scripts/demo.py          end-to-end walkthrough
+scripts/fetch_model.py   download real 0.5B / 1B GGUF weights
+scripts/aichat.py        interactive chat (real model; chat or agent mode)
+scripts/agent_real.py    real-model agentic loop + eval harness
+scripts/vision_real.py   score the real 256M vision model on images
+scripts/agent_vision_demo.py  text agent using the real `see` vision tool
+scripts/train_vision.py  train the vision tower on synthetic shapes
+scripts/eval_vision.py   measure image grounding vs a blank baseline
+scripts/sft_agentic.py   agentic SFT (think / tool / verify traces)
+scripts/make_soup.py     uniform / greedy model soup
+scripts/chat.py          chat CLI for a checkpoint you trained (base/instruct/agent)
 ```

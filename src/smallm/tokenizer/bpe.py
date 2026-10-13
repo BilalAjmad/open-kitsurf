@@ -241,8 +241,17 @@ class BPETokenizer:
                 continue
             parts.append(s)
         text = "".join(parts)
-        raw = bytes(UNICODE_TO_BYTE.get(c, ord("?")) for c in text)
-        return raw.decode("utf-8", errors="replace")
+        # Special tokens carry literal ASCII (for example the leading space in
+        # " thinking"), so decode them directly. Plain tokens are byte-encoded
+        # through the GPT-2 byte<->unicode table.
+        out = bytearray()
+        for c in text:
+            b = UNICODE_TO_BYTE.get(c)
+            if b is None:
+                out.extend(c.encode("utf-8"))
+            else:
+                out.append(b)
+        return bytes(out).decode("utf-8", errors="replace")
 
     def save(self, path: str) -> None:
         with open(path, "w") as f:

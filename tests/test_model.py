@@ -80,6 +80,51 @@ def test_generate_cache_matches_no_cache():
     assert greedy.shape[1] == 13
 
 
+def test_load_dolly_parses_real_format(tmp_path):
+    import json
+    from smallm.data import load_dolly
+
+    p = tmp_path / "dolly.jsonl"
+    rows = [
+        {"instruction": "What is 2+2?", "context": "", "response": "4"},
+        {"instruction": "Name a colour", "context": "a red apple", "response": "red"},
+        {"instruction": "", "context": "", "response": "skip me"},
+    ]
+    p.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    pairs = load_dolly(str(p))
+    assert len(pairs) == 2
+    assert pairs[0][1] == "4"
+    assert "context: a red apple" in pairs[1][0]
+    assert pairs[1][1] == "red"
+
+
+def test_vision_gradients_reach_every_vision_module():
+    model = build_model(tiny_cfg()).train()
+    n = model.vision.num_visual_tokens
+    ids = torch.randint(0, 512, (2, 1 + n + 4))
+    ids[:, 1:1 + n] = tiny_cfg().image_token_id
+    labels = ids.clone()
+    labels[:, :1 + n] = -100
+    out = model(input_ids=ids, images=torch.randn(2, 3, 32, 32), labels=labels)
+    out["loss"].backward()
+    for name, p in model.vision.named_parameters():
+        assert p.grad is not None and p.grad.abs().sum() > 0, name
+    assert model.projector.net[0].weight.grad.abs().sum() > 0
+
+
+def test_vision_changes_caption_vs_blank():
+    # A trained vision path must make the caption depend on the pixels. Here we
+    # only assert that different images produce different hidden states, which
+    # is the property the training script exploits.
+    model = build_model(tiny_cfg()).eval()
+    n = model.vision.num_visual_tokens
+    ids = torch.randint(0, 512, (1, 1 + n + 4))
+    ids[:, 1:1 + n] = tiny_cfg().image_token_id
+    a = model.encode_images(torch.zeros(1, 3, 32, 32))
+    b = model.encode_images(torch.ones(1, 3, 32, 32))
+    assert not torch.allclose(a, b)
+
+
 def test_moe_forward():
     cfg = tiny_cfg()
     cfg.text.use_moe = True

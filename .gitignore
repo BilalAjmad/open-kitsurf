@@ -3,9 +3,13 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .agent_tmp/
+.logs/
+.pylibs/
 checkpoints/
 data/raw/
 data/processed/tokens.bin
 *.pt
 *.bin
 *.safetensors
+models/
+*.gguf

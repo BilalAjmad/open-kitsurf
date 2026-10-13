@@ -39,8 +39,10 @@ def chat_once(model, tok, user: str, max_new: int = 200, temperature: float = 0.
               instruct: bool = False, repetition_penalty: float = 1.3,
               no_repeat_ngram_size: int = 3, top_k: int = 50) -> str:
     if instruct:
-        # use after agentic SFT, which teaches the <system>/<user> format
-        prompt = f"<bos><system> You are SmallM. Use strict English. </system><user> {user} </user><assistant>"
+        # use after agentic SFT, which teaches this exact <system>/<user> format
+        from smallm.data.agentic import SYSTEM_PROMPT
+
+        prompt = f"<bos><system> {SYSTEM_PROMPT} </system><user> {user} </user><assistant>"
     else:
         # base mode: continue the user's text directly (docs begin with <bos>)
         prompt = "<bos>" + user
