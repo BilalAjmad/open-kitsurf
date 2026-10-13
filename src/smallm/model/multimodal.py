@@ -7,8 +7,19 @@ import torch
 import torch.nn as nn
 
 from ..config import ModelConfig
+from .nova import NovaModel
 from .text_model import TextModel
 from .vision import Projector, VisionEncoder
+
+
+def build_text_backbone(cfg):
+    """Pick the text backbone from `cfg.arch`."""
+    arch = getattr(cfg, "arch", "transformer")
+    if arch == "nova":
+        return NovaModel(cfg)
+    if arch == "transformer":
+        return TextModel(cfg)
+    raise ValueError(f"unknown text arch: {arch!r}")
 
 
 class SmallM(nn.Module):
@@ -17,7 +28,7 @@ class SmallM(nn.Module):
         self.cfg = cfg
         self.vision = VisionEncoder(cfg.vision)
         self.projector = Projector(cfg.vision, cfg.text.hidden_size)
-        self.text = TextModel(cfg.text)
+        self.text = build_text_backbone(cfg.text)
         self.text.image_token_id = cfg.image_token_id
 
     def encode_images(self, images: torch.Tensor) -> torch.Tensor:

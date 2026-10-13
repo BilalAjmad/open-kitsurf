@@ -36,6 +36,13 @@ class TextConfig:
     num_experts: int = 8
     num_experts_per_tok: int = 2
     moe_intermediate_size: int = 768
+    # Architecture: "transformer" (plain stack) or "nova" (recurrent-depth,
+    # parallel-residual, QK-norm, layer-scale).
+    arch: str = "transformer"
+    num_recurrent_steps: int = 1  # nova only: how many times the stack is applied
+    parallel_residual: bool = True  # nova only
+    qk_norm: bool = True  # nova only
+    layer_scale_init: float = 0.0  # nova only: 0 disables layer scale
 
 
 @dataclass

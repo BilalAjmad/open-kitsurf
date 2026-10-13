@@ -80,6 +80,51 @@ def test_generate_cache_matches_no_cache():
     assert greedy.shape[1] == 13
 
 
+def nova_cfg(steps=2):
+    return ModelConfig(
+        vision=VisionConfig(image_size=32, patch_size=16, hidden_size=64,
+                            num_hidden_layers=2, num_attention_heads=4,
+                            projector_hidden=128, num_visual_tokens=4),
+        text=TextConfig(vocab_size=512, hidden_size=64, num_hidden_layers=2,
+                        num_attention_heads=4, num_key_value_heads=2,
+                        intermediate_size=128, max_seq_len=64, arch="nova",
+                        num_recurrent_steps=steps, parallel_residual=True,
+                        qk_norm=True, layer_scale_init=0.1),
+    )
+
+
+def test_nova_forward_and_loss():
+    model = build_model(nova_cfg()).train()
+    ids = torch.randint(0, 512, (2, 16))
+    out = model(ids, labels=ids)
+    assert out["logits"].shape == (2, 16, 512)
+    assert torch.isfinite(out["loss"])
+    out["loss"].backward()
+    assert any(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in model.parameters())
+
+
+def test_nova_recurrence_increases_effective_depth_not_params():
+    cfg1 = nova_cfg(steps=1)
+    cfg3 = nova_cfg(steps=3)
+    p1 = sum(p.numel() for p in build_model(cfg1).parameters())
+    p3 = sum(p.numel() for p in build_model(cfg3).parameters())
+    # only the tiny step embeddings differ; the unique blocks are shared
+    assert p3 - p1 == 2 * cfg1.text.hidden_size
+
+
+def test_nova_generate_matches_cache_and_no_cache():
+    model = build_model(nova_cfg()).eval()
+    ids = torch.randint(0, 512, (1, 8))
+    a = model.generate(ids, max_new_tokens=5, eos_token_id=-1, temperature=0.0)
+    # cached generation is used internally; recompute full-sequence greedy path
+    full = ids
+    for _ in range(5):
+        logits = model(full)["logits"][:, -1, :]
+        full = torch.cat([full, logits.argmax(-1, keepdim=True)], dim=1)
+    assert torch.equal(a, full)
+
+
 def test_load_dolly_parses_real_format(tmp_path):
     import json
     from smallm.data import load_dolly

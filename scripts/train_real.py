@@ -56,18 +56,26 @@ def main():
     ap.add_argument("--snapshot-dir", default=None,
                     help="also save weights-only snapshots here (for model soup)")
     ap.add_argument("--snapshot-every", type=int, default=0)
+    ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     args = ap.parse_args()
 
     torch.set_num_threads(args.threads)
     torch.manual_seed(args.seed)
     os.makedirs(args.out, exist_ok=True)
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else (
+            "mps" if getattr(torch.backends, "mps", None)
+            and torch.backends.mps.is_available() else "cpu")
+    else:
+        device = args.device
+    print(f"device = {device}", flush=True)
 
     cfg = ModelConfig.load(args.config)
     tok_meta = os.path.join(args.data_dir, "meta.json")
     corpus = TokenCorpus(os.path.join(args.data_dir, "tokens.bin"), tok_meta)
     print(f"corpus tokens = {corpus.n/1e6:.1f}M", flush=True)
 
-    model = build_model(cfg)
+    model = build_model(cfg).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"model params = {n_params/1e6:.1f}M", flush=True)
 
@@ -94,7 +102,9 @@ def main():
         batch_loss = 0.0
         for _ in range(args.accum):
             batch = corpus.sample_batch(args.batch_size, args.seq_len)
-            out = model(input_ids=batch["input_ids"], labels=batch["labels"])
+            ids = batch["input_ids"].to(device)
+            labs = batch["labels"].to(device)
+            out = model(input_ids=ids, labels=labs)
             loss = out["loss"] / args.accum
             loss.backward()
             batch_loss += float(loss.detach())
@@ -114,18 +124,21 @@ def main():
             running = 0.0
 
         if (step + 1) % args.save_every == 0 or (step + 1) == args.steps:
-            sd = {"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+            sd = {"model": {k: v.cpu() for k, v in model.state_dict().items()},
+                  "optimizer": optimizer.state_dict(),
                   "step": step + 1, "config": cfg.to_dict()}
             torch.save(sd, ckpt_path)
             print(f"saved checkpoint at step {step+1}", flush=True)
 
         if args.snapshot_dir and args.snapshot_every and (step + 1) % args.snapshot_every == 0:
             os.makedirs(args.snapshot_dir, exist_ok=True)
-            torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
+            torch.save({"model": {k: v.cpu() for k, v in model.state_dict().items()},
+                        "config": cfg.to_dict()},
                        os.path.join(args.snapshot_dir, f"snap_{args.seed}_{step+1}.pt"))
 
     # final export: weights only + tokenizer + config = ready-to-use artifact
-    torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
+    torch.save({"model": {k: v.cpu() for k, v in model.state_dict().items()},
+                "config": cfg.to_dict()},
                os.path.join(args.out, "model.pt"))
     tc = os.path.join(args.data_dir, "tokenizer.json")
     if os.path.exists(tc):
@@ -136,7 +149,8 @@ def main():
         vals = []
         for _ in range(10):
             b = corpus.sample_batch(args.batch_size, args.seq_len)
-            vals.append(float(model(input_ids=b["input_ids"], labels=b["labels"])["loss"]))
+            vals.append(float(model(input_ids=b["input_ids"].to(device),
+                                    labels=b["labels"].to(device))["loss"]))
     final_loss = sum(vals) / len(vals)
     with open(os.path.join(args.out, "train_report.json"), "w") as f:
         json.dump({"params": n_params, "steps": args.steps, "final_loss": final_loss}, f, indent=2)
