@@ -65,3 +65,15 @@ weights are shipped.
   the call in prose. Reject answers that are JSON, carry function-call syntax,
   or leak control tokens. Normalize a messy answer only when it contains a
   number the tools actually produced. Ignore a repeated identical tool call.
+- Brand-new 30M model: `scripts/pipeline_smallm.sh` trains 28.3M from scratch on
+  real TinyStories then real Dolly-15k instructions, then agentic SFT, then
+  model soup. Every stage is resumable via its own `last.pt`. Run it under
+  `scripts/watchdog.sh` so a sandbox restart resumes automatically. On this CPU
+  box 30M runs at ~800 tok/s (≈13h for 5000 steps); 600M/1B run at ~25 tok/s
+  and are not trainable here — do not attempt a from-scratch run that large.
+- Real instruction data lives at `data/raw/dolly/databricks-dolly-15k.jsonl`
+  (fetched with `huggingface_hub`, unauthenticated). Loader: `smallm.data.load_dolly`.
+- GitHub: the `GITHUB_TOKEN` is a GitHub **App** installation token. It can read
+  repos and push branches, but **cannot create repos** (`Resource not accessible
+  by integration`) and cannot change the default branch. Work lands as a branch
+  on `BilalAjmad/open-kitsurf`. There is no PR base branch on that empty repo.
