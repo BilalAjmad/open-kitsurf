@@ -77,3 +77,16 @@ weights are shipped.
   repos and push branches, but **cannot create repos** (`Resource not accessible
   by integration`) and cannot change the default branch. Work lands as a branch
   on `BilalAjmad/open-kitsurf`. There is no PR base branch on that empty repo.
+- Nova architecture: `src/smallm/model/nova.py`, selected with `cfg.text.arch =
+  "nova"`. It is a recurrent-depth transformer — the block stack runs
+  `num_recurrent_steps` times with a learned per-step embedding, plus parallel
+  residual, QK-norm and layer-scale. Same forward contract as `TextModel`, so it
+  is a drop-in backbone. Presets: `configs/smallm_nova_30m.json` (28.3M, depth
+  16) and `configs/smallm_nova_90m.json` (89.7M, depth 24). Note: GQA needs
+  `num_attention_heads % num_key_value_heads == 0`. Pipeline:
+  `scripts/pipeline_nova.sh` (durable, resumable).
+- No GPU and no Kaggle credentials on this box; the venv torch lives in
+  `.pylibs`, so any script needs `PYTHONPATH=/workspace/project/.pylibs:src`.
+  `scripts/train_real.py` takes `--device auto|cpu|cuda|mps` and always saves
+  weights on CPU. For a bigger from-scratch model use the free GPU via
+  `notebooks/kaggle_nova_train.ipynb` (public repo -> clone, no secrets).
