@@ -70,6 +70,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--train-on-prompt", action="store_true",
                     help="also compute loss on prompt tokens (full-sequence loss)")
+    ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
 
     torch.set_num_threads(args.threads)
@@ -88,9 +89,17 @@ def main():
     )
     print(f"agentic SFT pairs = {len(pairs)}", flush=True)
     opt = make_optimizer(model, lr=args.lr)
+    start_step = 0
+    last_path = os.path.join(args.out, "last.pt")
+    if args.resume and os.path.exists(last_path):
+        sd2 = torch.load(last_path, map_location="cpu")
+        model.load_state_dict(sd2["model"])
+        opt.load_state_dict(sd2["optimizer"])
+        start_step = sd2["step"]
+        print(f"resumed agent SFT from step {start_step}", flush=True)
     model.train()
 
-    for step in range(args.steps):
+    for step in range(start_step, args.steps):
         batch_pairs = [pairs[(step * args.batch_size + i) % len(pairs)]
                        for i in range(args.batch_size)]
         batch = pad_batch(batch_pairs, tok, args.seq_len, args.train_on_prompt)
@@ -102,6 +111,8 @@ def main():
         if (step + 1) % 50 == 0:
             print(f"sft step {step+1}/{args.steps}  loss {float(out['loss'].detach()):.4f}", flush=True)
         if args.save_every and (step + 1) % args.save_every == 0:
+            torch.save({"model": model.state_dict(), "optimizer": opt.state_dict(),
+                        "step": step + 1, "config": cfg.to_dict()}, last_path)
             torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
                        os.path.join(args.out, f"sft_{step+1}.pt"))
 
