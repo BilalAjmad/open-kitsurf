@@ -98,6 +98,34 @@ This produces a **real trained checkpoint** you can talk to. It is a small
 model on a small corpus, so expect the quality of a small model — coherent
 short English and working tool traces, not frontier prose.
 
+### SmallM-Nova — a brand-new architecture (recurrent-depth transformer)
+
+Nova is not the plain stack. It is a **recurrent-depth** transformer: the block
+stack is applied `num_recurrent_steps` times with a learned per-step embedding,
+so the model gets more *effective depth* without more parameters. It also uses
+**parallel residuals** (attention and FFN read the same normalized input),
+**QK-norm** (per-head RMS on q/k) and **layer-scale**. Code: `src/smallm/model/nova.py`.
+Pick it with `cfg.text.arch = "nova"`.
+
+| Preset | Params | Effective depth | Trainable here? |
+|---|---|---|---|
+| `configs/smallm_nova_30m.json` | 28.3M | 16 (8 blocks × 2 loops) | yes, CPU (~28h) |
+| `configs/smallm_nova_90m.json` | 89.7M | 24 (12 blocks × 2 loops) | yes, on a free GPU |
+
+```bash
+# durable from-scratch run (resumes across restarts)
+nohup bash scripts/watchdog.sh .logs/pipeline_nova.log \
+  bash scripts/pipeline_nova.sh >/dev/null 2>&1 &
+```
+
+### Train a bigger Nova on a free Kaggle GPU
+
+`notebooks/kaggle_nova_train.ipynb` is a turnkey notebook: it clones this repo,
+downloads real TinyStories and real Dolly-15k, then trains the 90M Nova from
+scratch and runs instruction + agentic SFT and soup. On Kaggle: **New Notebook →
+File → Import Notebook → upload this file → Settings → Internet On → Run all**.
+Artifacts land in `/kaggle/working` for download.
+
 ### The 30M model, from scratch on real data (brand new)
 
 `scripts/pipeline_smallm.sh` trains a fresh **28.3M** model end to end and
@@ -279,6 +307,7 @@ scripts/eval_vision.py   measure image grounding vs a blank baseline
 scripts/sft_agentic.py   agentic SFT (think / tool / verify traces)
 scripts/sft_instruct.py  instruction SFT on real Dolly-15k
 scripts/pipeline_smallm.sh  durable end-to-end training for the 30M model
+scripts/pipeline_nova.sh    durable from-scratch training for the Nova architecture
 scripts/watchdog.sh      keep a long run alive across restarts
 scripts/make_soup.py     uniform / greedy model soup
 scripts/chat.py          chat CLI for a checkpoint you trained (base/instruct/agent)
