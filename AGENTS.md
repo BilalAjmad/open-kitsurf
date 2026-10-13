@@ -103,3 +103,10 @@ weights are shipped.
   (think -> tool -> verify) and self-verification catches wrong answers, but the
   15M model mis-copies operands (e.g. 12+7 -> answers 16); that is a capacity
   limit, not a loop bug.
+- Vision: Nova consumes pixels through the same `VisionEncoder`+`Projector`
+  (`SmallM` wires them), so `arch=nova` is multimodal out of the box. Transplant
+  the trained vision checkpoint with `configs/smallm_nova_vision.json` +
+  `scripts/pipeline_nova_vision.sh`; it grounds images **60/60 vs 5/60 blank**.
+- Model soup: `scripts/make_soup.py --snapshot-dir ...` combines checkpoints;
+  `distill_nova.py` has `--snapshot-dir/--snapshot-every` to emit them. Release
+  v0.1.0 ships 4 assets: base, soup, agent, vision.

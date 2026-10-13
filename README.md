@@ -107,6 +107,7 @@ Prebuilt artifacts, on the GitHub release **v0.1.0**:
 | `smallm-nova-ready.tar.gz` | base Nova (15.0M, depth 12) | `chat.py --model checkpoints/nova_ready --prompt "Once upon a time"` |
 | `smallm-nova-agent.tar.gz` | agentic Nova (think/tool/verify) | `chat.py --model checkpoints/nova_ready_agent --mode agent` |
 | `smallm-nova-vision.tar.gz` | vision Nova (sees images) | `eval_vision.py checkpoints/nova_vision/model.pt` |
+| `smallm-nova-soup.tar.gz` | model soup over distillation snapshots | `chat.py --model checkpoints/nova_ready_soup ...` |
 
 ```bash
 mkdir -p checkpoints/nova_ready && tar xzf smallm-nova-ready.tar.gz -C checkpoints/nova_ready
