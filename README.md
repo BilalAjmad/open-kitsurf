@@ -98,6 +98,20 @@ This produces a **real trained checkpoint** you can talk to. It is a small
 model on a small corpus, so expect the quality of a small model — coherent
 short English and working tool traces, not frontier prose.
 
+### Download a ready SmallM-Nova (no training needed)
+
+Prebuilt artifacts, on the GitHub release **v0.1.0**:
+
+| File | What it is | Run |
+|---|---|---|
+| `smallm-nova-ready.tar.gz` | base Nova (15.0M, depth 12) | `chat.py --model checkpoints/nova_ready --prompt "Once upon a time"` |
+| `smallm-nova-agent.tar.gz` | agentic Nova (think/tool/verify) | `chat.py --model checkpoints/nova_ready_agent --mode agent` |
+
+```bash
+mkdir -p checkpoints/nova_ready && tar xzf smallm-nova-ready.tar.gz -C checkpoints/nova_ready
+PYTHONPATH=.pylibs:src python3 scripts/chat.py --model checkpoints/nova_ready --prompt "Once upon a time"
+```
+
 ### Ready-to-use SmallM-Nova (the new architecture, trained)
 
 `scripts/pipeline_nova_ready.sh` produces a **fully ready Nova** quickly: it

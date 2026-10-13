@@ -90,3 +90,16 @@ weights are shipped.
   `scripts/train_real.py` takes `--device auto|cpu|cuda|mps` and always saves
   weights on CPU. For a bigger from-scratch model use the free GPU via
   `notebooks/kaggle_nova_train.ipynb` (public repo -> clone, no secrets).
+- Delivery: although the token cannot **create repos**, it has admin on
+  `BilalAjmad/open-kitsurf`, so a **GitHub release + asset upload works** and is
+  how trained checkpoints are shipped. Release v0.1.0 carries
+  `smallm-nova-ready.tar.gz` and `smallm-nova-agent.tar.gz` (~53MB each):
+  `POST /repos/:o/:r/releases` then `POST <upload_url>?name=...`.
+- Fast path to a trained Nova: `scripts/transplant_to_nova.py` copies a trained
+  transformer checkpoint into Nova (same block contract), then
+  `scripts/distill_nova.py` distils teacher -> student. Chain:
+  `scripts/pipeline_nova_ready.sh`. Distilled base reached CE 3.82 vs teacher
+  3.56 and chats coherently. The 15M model's agentic loop runs end to end
+  (think -> tool -> verify) and self-verification catches wrong answers, but the
+  15M model mis-copies operands (e.g. 12+7 -> answers 16); that is a capacity
+  limit, not a loop bug.
