@@ -125,6 +125,44 @@ def test_nova_generate_matches_cache_and_no_cache():
     assert torch.equal(a, full)
 
 
+def _load_transplant():
+    import importlib.util
+    path = os.path.join(os.path.dirname(__file__), "..", "scripts", "transplant_to_nova.py")
+    spec = importlib.util.spec_from_file_location("transplant_to_nova", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.transplant
+
+
+def test_transplant_copies_trained_weights_into_nova():
+    teacher = build_model(tiny_cfg())
+    tsd = teacher.state_dict()
+    target = ModelConfig(
+        vision=VisionConfig(image_size=32, patch_size=16, hidden_size=64,
+                            num_hidden_layers=2, num_attention_heads=4,
+                            projector_hidden=128, num_visual_tokens=4),
+        text=TextConfig(vocab_size=512, hidden_size=64, num_hidden_layers=2,
+                        num_attention_heads=4, num_key_value_heads=2,
+                        intermediate_size=128, max_seq_len=64, arch="nova",
+                        num_recurrent_steps=2, parallel_residual=True,
+                        qk_norm=True, layer_scale_init=0.1),
+    )
+    transplant = _load_transplant()
+    model, copied, fresh, mism = transplant(tsd, target)
+    assert not mism, mism
+    # every trained transformer tensor landed in the Nova
+    nova = model.state_dict()
+    for k in copied:
+        assert torch.equal(nova[k], tsd[k]), k
+    # Nova-only tensors are warm-started to reproduce the teacher
+    assert torch.all(nova["text.step_embed"] == 0)
+    for k in nova:
+        if k.endswith("attn_scale") or k.endswith("ffn_scale"):
+            assert torch.all(nova[k] == 1.0), k
+    ids = torch.randint(0, 512, (1, 16))
+    assert torch.isfinite(model(ids)["logits"]).all()
+
+
 def test_load_dolly_parses_real_format(tmp_path):
     import json
     from smallm.data import load_dolly

@@ -28,6 +28,38 @@ from smallm.config import ModelConfig
 from smallm.model import build_model
 
 
+def transplant(tsd: dict, cfg: ModelConfig):
+    """Copy every matching tensor from `tsd` into a fresh Nova of `cfg`.
+
+    Returns (model, copied_keys, fresh_keys, shape_mismatches). Nova-only tensors
+    get a warm start that reproduces the teacher on the first recurrence pass:
+    q/k norms identity, layer scales at 1.0, loop embeddings zero.
+    """
+    assert cfg.text.arch == "nova", "target config must be arch=nova"
+    model = build_model(cfg)
+    sd = model.state_dict()
+
+    copied, shape_mismatch = [], []
+    for k, v in tsd.items():
+        if k not in sd:
+            continue
+        if sd[k].shape == v.shape:
+            sd[k] = v.clone()
+            copied.append(k)
+        else:
+            shape_mismatch.append((k, tuple(v.shape), tuple(sd[k].shape)))
+
+    if "text.step_embed" in sd:
+        sd["text.step_embed"] = torch.zeros_like(sd["text.step_embed"])
+    for k in sd:
+        if k.endswith("attn_scale") or k.endswith("ffn_scale"):
+            sd[k] = torch.ones_like(sd[k])
+
+    fresh = [k for k in sd if k not in copied]
+    model.load_state_dict(sd)
+    return model, copied, fresh, shape_mismatch
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--teacher", required=True)
@@ -40,32 +72,7 @@ def main() -> None:
     tcfg = ModelConfig.from_dict(tck["config"]) if "config" in tck else None
 
     cfg = ModelConfig.load(args.config)
-    assert cfg.text.arch == "nova", "target config must be arch=nova"
-    model = build_model(cfg)
-    sd = model.state_dict()
-
-    copied, new, shape_mismatch = [], [], []
-    for k, v in tsd.items():
-        if k not in sd:
-            # e.g. teacher has no step_embed; nothing teacher-only should exist
-            continue
-        if sd[k].shape == v.shape:
-            sd[k] = v.clone()
-            copied.append(k)
-        else:
-            shape_mismatch.append((k, tuple(v.shape), tuple(sd[k].shape)))
-
-    # Nova-only tensors get a warm start that reproduces the teacher on the
-    # first recurrence pass: q/k norms identity, layer scales at 1.0 (so the
-    # transplanted branches are actually used, not damped), loop embeddings zero.
-    if "text.step_embed" in sd:
-        sd["text.step_embed"] = torch.zeros_like(sd["text.step_embed"])
-    for k in sd:
-        if k.endswith("attn_scale") or k.endswith("ffn_scale"):
-            sd[k] = torch.ones_like(sd[k])
-
-    new = [k for k in sd if k not in copied]
-    model.load_state_dict(sd)
+    model, copied, new, shape_mismatch = transplant(tsd, cfg)
 
     os.makedirs(args.out, exist_ok=True)
     torch.save({"model": model.state_dict(), "config": cfg.to_dict()},
