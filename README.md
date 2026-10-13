@@ -11,6 +11,40 @@ thing: training the weights to frontier quality requires GPUs that are not
 present in the development sandbox (4 CPU cores, 15 GB RAM, no GPU). Everything
 here is verified by an automated test suite that runs on CPU.
 
+## Run it right now (one command, nothing to install)
+
+Everything is already downloaded and trained. Just run:
+
+```bash
+python3 run.py            # menu: pick what to run, then chat
+python3 run.py qwen       # real Qwen2.5-0.5B chat (strongest; 6/6 agent benchmark)
+python3 run.py qwen --agent   # real 0.5B driving the tool loop
+python3 run.py llama --agent  # real Llama-3.2-1B agent (2/6, fails honestly)
+python3 run.py chat       # our own Nova chat
+python3 run.py chat --model soup --prompt "The little robot"
+python3 run.py agent      # our own Nova agentic loop: think / tool / verify
+python3 run.py vision     # prove the vision Nova sees images (60/60)
+```
+
+`run.py` sets up `torch`, `llama.cpp` and the source paths itself, so there is
+no `PYTHONPATH` to remember.
+
+**Real off-the-shelf models** (0.5B / 1B, GGUF on CPU):
+
+| `run.py ...` | Model | Agent benchmark |
+|---|---|---|
+| `qwen` / `qwen --agent` | Qwen2.5-0.5B-Instruct Q4 | **6/6** |
+| `llama --agent` | Llama-3.2-1B-Instruct Q4 | 2/6 |
+
+**Our own trained Nova** (in `checkpoints/`):
+
+| `--model` | Folder | What it is |
+|---|---|---|
+| `base` | `checkpoints/nova_ready` | distilled Nova, coherent English (CE 3.80) |
+| `soup` | `checkpoints/nova_ready_soup` | model soup, slightly better (CE 3.75) |
+| `agent` | `checkpoints/nova_ready_agent` | think / tool / verify loop + sandbox |
+| `vision` | `checkpoints/nova_vision` | image grounding, 60/60 vs 5/60 blank |
+
 ## Ready now — talk to a real 0.5B / 1B agent on CPU
 
 You do not have to train anything to get a working model. This repo runs
