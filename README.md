@@ -98,6 +98,29 @@ This produces a **real trained checkpoint** you can talk to. It is a small
 model on a small corpus, so expect the quality of a small model — coherent
 short English and working tool traces, not frontier prose.
 
+### The 30M model, from scratch on real data (brand new)
+
+`scripts/pipeline_smallm.sh` trains a fresh **28.3M** model end to end and
+survives sandbox restarts (every stage resumes from its own `last.pt`). It uses
+two genuinely real datasets: **TinyStories** (pretraining) and **Databricks
+Dolly-15k** — 15,011 real, human-written instruction/response pairs (the
+instruction SFT stage):
+
+```bash
+# durable: restarts resume automatically
+nohup bash scripts/watchdog.sh .logs/pipeline30.log \
+  bash scripts/pipeline_smallm.sh >/dev/null 2>&1 &
+```
+
+Stages: pretrain 5000 steps → **instruct SFT on real Dolly-15k** (1500 steps)
+→ **agentic SFT** (1200 steps, think / tool / verify) → **model soup** over the
+last 8 snapshots. Then talk to it:
+
+```bash
+PYTHONPATH=src python3 scripts/chat.py --model checkpoints/smallm_30m_instruct --instruct
+PYTHONPATH=src python3 scripts/chat.py --model checkpoints/smallm_30m_agent --mode agent
+```
+
 The ready-made artifacts in this repo:
 
 | Path | What it is |
@@ -254,6 +277,9 @@ scripts/agent_vision_demo.py  text agent using the real `see` vision tool
 scripts/train_vision.py  train the vision tower on synthetic shapes
 scripts/eval_vision.py   measure image grounding vs a blank baseline
 scripts/sft_agentic.py   agentic SFT (think / tool / verify traces)
+scripts/sft_instruct.py  instruction SFT on real Dolly-15k
+scripts/pipeline_smallm.sh  durable end-to-end training for the 30M model
+scripts/watchdog.sh      keep a long run alive across restarts
 scripts/make_soup.py     uniform / greedy model soup
 scripts/chat.py          chat CLI for a checkpoint you trained (base/instruct/agent)
 ```
