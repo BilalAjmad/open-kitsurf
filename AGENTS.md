@@ -26,6 +26,20 @@ weights are shipped.
    `</think>`=5, `<verify>`=6, `</verify>`=7, then tool tokens 8-13.
 - Be honest in docs: never claim trained weights or frontier-beating results.
 
+## Chimera (second from-scratch architecture)
+- `src/smallm/model/chimera.py`, registered `arch="chimera"`. Hybrid:
+  selective SSM (learned per-channel decay) + GQA attention interleaved every
+  `ssm_every` layers + optional sparse MoE FFN; sandwich RMSNorm.
+- Configs: `configs/smallm_chimera_15m.json`, `..._agent.json`, `..._vision.json`.
+- Data pipeline (quality-first, unlike Nova/Ageis raw text):
+  `scripts/curate_data.py` -> `scripts/build_instruct_corpus.py` ->
+  `scripts/prepare_data.py --allow-special`. Full chain: `scripts/pipeline_chimera.sh`.
+- Checkpoints: `checkpoints/chimera_15m` (base), `chimera_agent`, `chimera_vision`.
+- Honest results: base 15.2M params, loss 3.92, bpb 1.295; agent 1/11; vision
+  60/60 vs 5/60 blank. Reached with no distillation.
+- Data files under `data/curated/` and `data/processed_chimera/` are large and
+  git-ignored; only `meta.json` + `tokenizer.json` are tracked.
+
 ## Agentic training notes (learned on CPU)
 - SFT traces run 190–340 tokens. Train with `--seq-len 384`, not 256, or
   long traces get truncated.
