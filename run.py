@@ -100,13 +100,13 @@ def agent(model_name: str, prompt: str | None, max_new: int, temperature: float)
             one(line)
 
 
-def vision(_prompt, _max_new, _temperature):
+def vision(model_dir=None, _max_new=None, _temperature=None):
     # Real image grounding: coloured shapes the model has never seen.
     script = os.path.join(ROOT, "scripts", "eval_vision.py")
     env = dict(os.environ)
     env["PYTHONPATH"] = os.path.join(ROOT, ".pylibs") + os.pathsep + os.path.join(ROOT, "src")
     os.execve(sys.executable, [sys.executable, script,
-                               os.path.join(MODELS["vision"], "model.pt")], env)
+                               os.path.join(model_dir or MODELS["vision"], "model.pt")], env)
 
 
 # Real off-the-shelf models (GGUF via llama.cpp). These are the 0.5B / 1B
@@ -174,7 +174,7 @@ def menu():
         if picked in ("agent", "ageis-agent"):
             agent(picked, None, 256, 0.0)
         elif picked in ("vision", "ageis-vision"):
-            vision(None, None, None)
+            vision(MODELS[picked], None, None)
         else:
             chat(picked, None, 120, 0.7)
 
@@ -187,6 +187,16 @@ def main() -> None:
     # Real GGUF models: `run.py qwen`, `run.py llama --agent`.
     if cmd in REAL:
         real(cmd, "agent" if "--agent" in rest else "chat")
+        return
+
+    # Trained models by name: `run.py ageis`, `run.py ageis-vision`, ...
+    if cmd in MODELS:
+        if cmd.endswith("-agent") or cmd == "agent":
+            agent(cmd, None, 256, 0.0)
+        elif cmd.endswith("-vision") or cmd == "vision":
+            vision(MODELS[cmd], None, None)
+        else:
+            chat(cmd, None, 120, 0.7)
         return
 
     # Strict benchmark: `run.py bench` (report), `run.py bench --lm`, `--agent`.
@@ -217,7 +227,7 @@ def main() -> None:
     elif cmd == "agent":
         agent(model_name, prompt, max_new, temperature)
     elif cmd == "vision":
-        vision(None, None, None)
+        vision(MODELS["vision"], None, None)
     else:
         menu()
 

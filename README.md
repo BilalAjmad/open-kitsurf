@@ -49,11 +49,49 @@ counted). Current numbers on this 4-core CPU box (models dated 2025-2026):
 | teacher-11m | 1.220 | - | - |
 | nova-base | 1.287 | 0/11 | 10 |
 | nova-soup | 1.291 | - | - |
+| ageis-soup | 1.359 | - | - |
+| ageis-base | 1.371 | 1/11 | 3 |
 
 A false pass is an answer the loop accepted that was actually wrong. Nova
 (15M) scores worse than the real 0.5B/1B models on every axis; the benchmark
 says so. Qwen3-0.6B (2026) matches Qwen2.5-0.5B at 11/11 despite being newer
 and smaller.
+
+## Ageis — a from-scratch model with its own architecture
+
+`Ageis` is a second, independent architecture in this repo (see
+`src/smallm/model/ageis.py`). It is trained from random weights on the same
+TinyStories corpus — no weights are copied from any other model.
+
+What makes it different from a plain transformer and from Nova:
+
+* **Sandwich norms** — every sublayer output is RMS-normalized after the
+  residual add, so the stream stays well-scaled as the loop deepens.
+* **Learned loop gates** — each recurrence pass is scaled by a learned scalar
+  gate that starts at 1.0. The trained model moved the gates to
+  **[1.18, 1.43]**, i.e. it chose to *amplify* the loop rather than damp it.
+* **Recurrent depth** — a 6-block stack applied twice, so depth grows without
+  new parameters.
+* QK-norm, GQA and RoPE for stable training at high learning rate.
+
+Trained 3000 steps on CPU in ~4 hours. Final training loss **3.94** (Nova's
+distilled checkpoint was 3.70). It produces coherent English:
+
+```
+>>> Once upon a time
+there an named went the. was, sun to sky lots brights and felt sad loo ...
+```
+
+Vision: the same base, vision-SFT'd, captions unseen coloured shapes at
+**60/60** with real images versus **5/60** with a blank image — the tower is
+doing the work, not a language prior.
+
+```bash
+python3 run.py ageis        # chat with the from-scratch Ageis
+python3 run.py ageis-agent  # its agentic SFT
+python3 run.py ageis-vision # its vision SFT
+bash scripts/pipeline_ageis.sh all   # rebuild the whole family
+```
 
 `run.py` sets up `torch`, `llama.cpp` and the source paths itself, so there is
 no `PYTHONPATH` to remember.

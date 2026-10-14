@@ -15,6 +15,8 @@ models with different vocabularies are compared fairly.
 | teacher-11m | 1.220 | 3.814 | 118 |
 | nova-base | 1.287 | 4.023 | 118 |
 | nova-soup | 1.291 | 4.035 | 118 |
+| ageis-soup | 1.359 | 4.247 | 118 |
+| ageis-base | 1.371 | 4.285 | 118 |
 
 ## Agentic ability (same task suite, graded by ground truth)
 
@@ -28,6 +30,7 @@ models with different vocabularies are compared fairly.
 | deepseek-r1-1.5b | 8/11 | 73% | 2 |
 | gemma3-1b | 5/11 | 45% | 3 |
 | llama3.2-1b | 2/11 | 18% | 0 |
+| ageis-agent | 1/11 | 9% | 3 |
 | nova-agent | 1/11 | 9% | 3 |
 | nova-base | 0/11 | 0% | 10 |
 
