@@ -37,6 +37,8 @@ TORCH_MODELS = {
     "nova-soup": "checkpoints/nova_ready_soup",
     "ageis-base": "checkpoints/ageis_15m",
     "ageis-soup": "checkpoints/ageis_15m_soup",
+    "chimera-base": "checkpoints/chimera_15m",
+    "chimera-soup": "checkpoints/chimera_15m_soup",
 }
 GGUF_MODELS = {
     "qwen2.5-0.5b": "models/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
@@ -170,7 +172,8 @@ def run_agent(model_name: str) -> None:
     if model_name in GGUF_MODELS:
         llm = load_llama(GGUF_MODELS[model_name])
         brain = RealBrain(llm, max_new_tokens=400, temperature=0.0)
-    elif model_name in ("nova-agent", "nova-base", "ageis-agent", "ageis-base"):
+    elif model_name in ("nova-agent", "nova-base", "ageis-agent", "ageis-base",
+                        "chimera-agent", "chimera-base"):
         import torch
 
         from smallm.config import ModelConfig
@@ -182,6 +185,8 @@ def run_agent(model_name: str) -> None:
             "nova-base": "checkpoints/nova_ready",
             "ageis-agent": "checkpoints/ageis_agent",
             "ageis-base": "checkpoints/ageis_15m",
+            "chimera-agent": "checkpoints/chimera_agent",
+            "chimera-base": "checkpoints/chimera_15m",
         }[model_name]
         torch.set_num_threads(4)
         ck = torch.load(os.path.join(folder, "model.pt"), map_location="cpu")

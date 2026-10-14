@@ -7,7 +7,9 @@ __pycache__/
 .pylibs/
 checkpoints/
 data/raw/
+data/curated/
 data/processed/tokens.bin
+*.log
 *.pt
 *.bin
 *.safetensors

@@ -59,6 +59,8 @@ def main():
     ap.add_argument("--vocab-size", type=int, default=4096)
     ap.add_argument("--tokenizer-sample-mb", type=float, default=24.0)
     ap.add_argument("--tokenize-limit-mb", type=float, default=None)
+    ap.add_argument("--allow-special", action="store_true",
+                    help="encode special tokens (<bos>, <user>, ...) as single ids")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -81,7 +83,7 @@ def main():
     eos = tok.eos_id
     for doc in iter_documents(args.raw, limit_mb=args.tokenize_limit_mb):
         all_ids.append(tok.bos_id)
-        all_ids.extend(tok.encode(doc, allow_special=False))
+        all_ids.extend(tok.encode(doc, allow_special=args.allow_special))
         all_ids.append(eos)
         n_docs += 1
         if n_docs % 20000 == 0:

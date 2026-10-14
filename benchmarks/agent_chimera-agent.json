@@ -1,0 +1,108 @@
+{
+  "model": "chimera-agent",
+  "n_tasks": 11,
+  "correct": 1,
+  "accuracy": 0.09090909090909091,
+  "false_passes": 1,
+  "rows": [
+    {
+      "task": "Compute 13+12.",
+      "expected": 25,
+      "got": -5,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 7
+    },
+    {
+      "task": "Compute 7*6.",
+      "expected": 42,
+      "got": 4,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 6
+    },
+    {
+      "task": "Compute 4839*27.",
+      "expected": 130653,
+      "got": null,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 8
+    },
+    {
+      "task": "Compute 100000-1.",
+      "expected": 99999,
+      "got": 100,
+      "passed": true,
+      "correct": false,
+      "false_pass": true,
+      "iters": 8
+    },
+    {
+      "task": "Compute 98765/5.",
+      "expected": 19753,
+      "got": 36,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 8
+    },
+    {
+      "task": "Compute 2+2.",
+      "expected": 4,
+      "got": 4,
+      "passed": false,
+      "correct": true,
+      "false_pass": false,
+      "iters": 5
+    },
+    {
+      "task": "Compute 15*4.",
+      "expected": 60,
+      "got": 148,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 7
+    },
+    {
+      "task": "Compute 100-37.",
+      "expected": 63,
+      "got": null,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 8
+    },
+    {
+      "task": "Compute 81/9.",
+      "expected": 9,
+      "got": 34,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 6
+    },
+    {
+      "task": "Compute 12+30.",
+      "expected": 42,
+      "got": null,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 8
+    },
+    {
+      "task": "Create note.txt with the content hello. Then read it back.",
+      "expected": "note.txt=hello",
+      "got": false,
+      "passed": false,
+      "correct": false,
+      "false_pass": false,
+      "iters": 7
+    }
+  ]
+}

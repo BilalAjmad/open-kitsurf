@@ -207,7 +207,7 @@ def test_load_dolly_parses_real_format(tmp_path):
 def test_vision_gradients_reach_every_vision_module():
     model = build_model(tiny_cfg()).train()
     n = model.vision.num_visual_tokens
-    ids = torch.randint(0, 512, (2, 1 + n + 4))
+    ids = torch.randint(10, 512, (2, 1 + n + 4))  # avoid the image token id
     ids[:, 1:1 + n] = tiny_cfg().image_token_id
     labels = ids.clone()
     labels[:, :1 + n] = -100
@@ -290,6 +290,65 @@ def test_ageis_generate_matches_manual_greedy():
 
 def test_ageis_is_multimodal():
     cfg = ageis_cfg()
+    model = build_model(cfg).eval()
+    n_img = cfg.vision.num_visual_tokens
+    ids = torch.tensor([[1] + [cfg.image_token_id] * n_img + [10, 11, 12]])
+    images = torch.randn(1, 3, cfg.vision.image_size, cfg.vision.image_size)
+    out = model(input_ids=ids, images=images)
+    assert out["logits"].shape == (1, ids.shape[1], cfg.text.vocab_size)
+    assert torch.isfinite(out["logits"]).all()
+
+
+def chimera_cfg(use_moe=False):
+    return ModelConfig(
+        vision=VisionConfig(image_size=32, patch_size=16, hidden_size=64,
+                            num_hidden_layers=2, num_attention_heads=4,
+                            projector_hidden=128, num_visual_tokens=4),
+        text=TextConfig(vocab_size=512, hidden_size=64, num_hidden_layers=4,
+                        num_attention_heads=4, num_key_value_heads=2,
+                        intermediate_size=128, max_seq_len=64, arch="chimera",
+                        ssm_every=2, use_moe=use_moe, num_experts=4,
+                        num_experts_per_tok=2, moe_intermediate_size=64),
+    )
+
+
+def test_chimera_forward_and_loss():
+    model = build_model(chimera_cfg()).train()
+    ids = torch.randint(0, 512, (2, 16))
+    out = model(ids, labels=ids)
+    assert out["logits"].shape == (2, 16, 512)
+    assert torch.isfinite(out["loss"])
+    out["loss"].backward()
+    assert any(p.grad is not None for p in model.text.parameters())
+
+
+def test_chimera_has_ssm_and_attention_layers():
+    model = build_model(chimera_cfg()).eval()
+    kinds = [type(l.mixer).__name__ for l in model.text.layers]
+    assert "SelectiveSSM" in kinds and "ChimeraAttention" in kinds
+    assert kinds[1] == "SelectiveSSM" and kinds[3] == "SelectiveSSM"
+
+
+def test_chimera_generate_matches_manual_greedy():
+    model = build_model(chimera_cfg()).eval()
+    ids = torch.randint(0, 512, (1, 8))
+    a = model.generate(ids, max_new_tokens=5, eos_token_id=-1, temperature=0.0)
+    full = ids
+    for _ in range(5):
+        logits = model(full)["logits"][:, -1, :]
+        full = torch.cat([full, logits.argmax(-1, keepdim=True)], dim=1)
+    assert torch.equal(a, full)
+
+
+def test_chimera_moe_aux_loss_is_finite():
+    model = build_model(chimera_cfg(use_moe=True)).train()
+    ids = torch.randint(0, 512, (2, 16))
+    out = model(ids, labels=ids)
+    assert torch.isfinite(out["loss"]) and torch.isfinite(out["aux_loss"])
+
+
+def test_chimera_is_multimodal():
+    cfg = chimera_cfg()
     model = build_model(cfg).eval()
     n_img = cfg.vision.num_visual_tokens
     ids = torch.tensor([[1] + [cfg.image_token_id] * n_img + [10, 11, 12]])

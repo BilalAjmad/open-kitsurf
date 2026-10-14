@@ -1,0 +1,6 @@
+{
+  "vocab_size": 4096,
+  "n_tokens": 75560913,
+  "n_docs": 340279,
+  "dtype": "uint16"
+}

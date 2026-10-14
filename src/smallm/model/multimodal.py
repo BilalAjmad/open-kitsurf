@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from ..config import ModelConfig
 from .ageis import AgeisModel
+from .chimera import ChimeraModel
 from .nova import NovaModel
 from .text_model import TextModel
 from .vision import Projector, VisionEncoder
@@ -18,6 +19,8 @@ def build_text_backbone(cfg):
     arch = getattr(cfg, "arch", "transformer")
     if arch == "ageis":
         return AgeisModel(cfg)
+    if arch == "chimera":
+        return ChimeraModel(cfg)
     if arch == "nova":
         return NovaModel(cfg)
     if arch == "transformer":

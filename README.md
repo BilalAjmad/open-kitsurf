@@ -49,6 +49,7 @@ counted). Current numbers on this 4-core CPU box (models dated 2025-2026):
 | teacher-11m | 1.220 | - | - |
 | nova-base | 1.287 | 0/11 | 10 |
 | nova-soup | 1.291 | - | - |
+| chimera-base | 1.295 | 1/11 | 1 |
 | ageis-soup | 1.359 | - | - |
 | ageis-base | 1.371 | 1/11 | 3 |
 
@@ -93,6 +94,53 @@ python3 run.py ageis-vision # its vision SFT
 bash scripts/pipeline_ageis.sh all   # rebuild the whole family
 ```
 
+## Chimera — a hybrid SSM + attention model with curated data
+
+`Chimera` is the third independent architecture here (see
+`src/smallm/model/chimera.py`). It is the one that uses the frontier recipe
+that Mamba/Jamba/Samba converged on in the 2020s: mix a cheap linear-time
+state-space layer with full attention, instead of using one or the other.
+
+* **Selective state-space mixer** — `h_t = a_t·h_{t-1} + (1-a_t)·x_t` with a
+  *learned, data-dependent* per-channel decay `a_t`. The model decides, per
+  token and per channel, how much state to keep. This is linear in sequence
+  length, unlike attention.
+* **Grouped-query attention** with RoPE and QK-norm, interleaved every fourth
+  layer, for exact long-range recall that a fixed-width state cannot give.
+* **Sparse mixture-of-experts FFN** (optional) — capacity grows without a
+  matching compute cost.
+* **Sandwich RMSNorm** after every residual add.
+
+Chimera is also the first model here trained on a *curated* corpus rather than
+raw text. `scripts/curate_data.py` scores every document (length, alphabetic
+ratio, repetition, punctuation) and removes near-duplicates with a MinHash
+sketch, then `scripts/build_instruct_corpus.py` folds in chat-formatted Dolly
+examples. The result: 75.6M tokens from 340k documents, deduped and filtered.
+
+Trained 4000 steps on CPU in ~3 hours. Final training loss **3.92**, and it
+reaches **1.295 bits/byte** on the fixed evaluation text — better than Ageis
+(1.371) and close to Nova (1.287), despite the same ~15M parameter budget and
+no distillation. It produces coherent English:
+
+```
+>>> Once upon a time
+Once upon a time there a girl her who to a house a. day was excited her to
+her and the was a with of. went the to and a to a. day went the to park play
+```
+
+Agent SFT reaches 1/11 on the agent suite (a 15M model is simply too small to
+do reliable multi-step tool use) and vision SFT reaches **60/60 vs 5/60 blank**
+on unseen coloured shapes. The numbers are what they are; the benchmark is the
+same one the real 0.5B/1B models are graded on.
+
+```bash
+python3 run.py chimera         # chat
+python3 run.py chimera-agent   # agentic SFT
+python3 run.py chimera-vision  # vision SFT
+bash scripts/pipeline_chimera.sh all   # curate -> pretrain -> SFT -> soup
+```
+
+
 `run.py` sets up `torch`, `llama.cpp` and the source paths itself, so there is
 no `PYTHONPATH` to remember.
 
@@ -111,6 +159,12 @@ no `PYTHONPATH` to remember.
 | `soup` | `checkpoints/nova_ready_soup` | model soup, slightly better (CE 3.75) |
 | `agent` | `checkpoints/nova_ready_agent` | think / tool / verify loop + sandbox |
 | `vision` | `checkpoints/nova_vision` | image grounding, 60/60 vs 5/60 blank |
+| `ageis` | `checkpoints/ageis_15m` | from-scratch gated recurrent model |
+| `ageis-agent` | `checkpoints/ageis_agent` | its agentic SFT |
+| `ageis-vision` | `checkpoints/ageis_vision` | image grounding, 60/60 vs 5/60 blank |
+| `chimera` | `checkpoints/chimera_15m` | hybrid SSM+attention, curated data |
+| `chimera-agent` | `checkpoints/chimera_agent` | its agentic SFT |
+| `chimera-vision` | `checkpoints/chimera_vision` | image grounding, 60/60 vs 5/60 blank |
 
 ## Ready now — talk to a real 0.5B / 1B agent on CPU
 

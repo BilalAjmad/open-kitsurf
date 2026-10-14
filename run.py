@@ -29,6 +29,9 @@ MODELS = {
     "ageis": "checkpoints/ageis_15m",        # from-scratch gated recurrent model
     "ageis-agent": "checkpoints/ageis_agent",
     "ageis-vision": "checkpoints/ageis_vision",
+    "chimera": "checkpoints/chimera_15m",    # hybrid SSM + attention + MoE
+    "chimera-agent": "checkpoints/chimera_agent",
+    "chimera-vision": "checkpoints/chimera_vision",
 }
 
 
@@ -171,9 +174,9 @@ def menu():
         else:
             print("unknown choice")
             return
-        if picked in ("agent", "ageis-agent"):
+        if picked.endswith("-agent") or picked == "agent":
             agent(picked, None, 256, 0.0)
-        elif picked in ("vision", "ageis-vision"):
+        elif picked.endswith("-vision") or picked == "vision":
             vision(MODELS[picked], None, None)
         else:
             chat(picked, None, 120, 0.7)
